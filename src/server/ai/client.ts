@@ -142,7 +142,7 @@ export function toAiError(error: unknown, task: AiTask): Error {
   if (error instanceof Anthropic.APIError && (error.status === 400 || error.status === 413 || error.status === 422)) {
     return new AiInputError(
       task === "extract"
-        ? "Claude couldn't read this file. It may be password-protected, damaged or too large. Export it again as a PDF, or add photos of the pages instead."
+        ? "Claude couldn't read this file. It may be password-protected, damaged or too large. Save or export it again, or add photos of the pages instead."
         : "Claude couldn't take in everything this step sends it. Try again; if it keeps happening, this test may hold too much material.",
     );
   }
@@ -184,10 +184,11 @@ export async function runClaude<T>(
     }).catch(() => undefined);
 
   const format = betaZodOutputFormat(schema);
+  let message: Anthropic.Beta.BetaMessage;
   try {
     // create(), not parse(): parse() reads the answer text before anything
     // else, so a cut-off or refused answer would fail there with a generic error.
-    const message = await anthropic.beta.messages.create(
+    message = await anthropic.beta.messages.create(
       {
         model,
         max_tokens: AI_MAX_TOKENS[task],
@@ -200,11 +201,18 @@ export async function runClaude<T>(
       },
       { timeout: AI_TIMEOUT_SECONDS[task] * 1000 },
     );
+  } catch (error) {
+    await log(false, undefined, describe(error));
+    throw toAiError(error, task);
+  }
+
+  try {
     const answer = readAnswer(message, (text) => format.parse(text));
     await log(true, message.usage);
     return answer;
   } catch (error) {
-    await log(false, undefined, describe(error));
-    throw toAiError(error, task);
+    // Claude did answer, so the tokens were spent even though the answer cannot be used.
+    await log(false, message.usage, describe(error));
+    throw error;
   }
 }

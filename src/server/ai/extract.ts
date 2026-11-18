@@ -58,13 +58,16 @@ async function pdfParts(bytes: Buffer): Promise<{ pageCount: number; parts: Part
   ];
 
   let source: PDFDocument;
+  let pageCount: number;
   try {
     source = await PDFDocument.load(bytes);
+    // A damaged file can load and still have no page tree to count.
+    pageCount = source.getPageCount();
   } catch {
-    // A PDF pdf-lib cannot open (for example an encrypted one) is still sent whole.
+    // A PDF that cannot be opened here (encrypted, damaged) is still sent whole: Claude may read it,
+    // and if it cannot, the student is told the file is the problem.
     return { pageCount: 0, parts: whole(0) };
   }
-  const pageCount = source.getPageCount();
   if (pageCount <= EXTRACT_PAGES_PER_CALL) return { pageCount, parts: whole(pageCount) };
 
   const parts: Part[] = [];
