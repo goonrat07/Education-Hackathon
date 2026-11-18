@@ -103,7 +103,25 @@ These are fixed here so every task agrees.
 - Shortage: `coverage` when a never-studied topic gets no session (lists what won't fit and what to prioritize); `review` when everything is covered but some topic gets no review.
 - Two attempts. Attempt 1 uses full-length sessions. If it leaves any shortage, attempt 2 also lets a day shrink its sessions toward 10 minutes (last placed first) to make room for one more. Attempt 2 is used only when it leaves fewer topics uncovered, or the same number uncovered and fewer unreviewed.
 
-**AI call budget.** `AI_DAILY_CALL_LIMIT = 120` per student per local day, counted per request to Anthropic.
+**AI call budget.** `AI_DAILY_CALL_LIMIT = 250` per student per local day, counted per request to Anthropic (a session uses 10 to 15). `AI_DAILY_CALL_CEILING = 1500` for all students together per UTC day, because sign-up is open. Checks are not written ahead of time once a student is within `AI_BACKGROUND_RESERVE = 25` calls of their limit.
+
+### Decided in the final review
+
+**Two answers agree only when they are the same.** Numbers agree when they are the same value at the precision written (18.0 and 18.02; whole numbers must be equal). A round number near an exact one, or decimals a hair apart, are "unsure" and go to the judge or grader. Unit symbols keep their capitals.
+
+**A session can always be finished.** A check the server could not write or grade (Claude down, busy or out of requests; nothing usable written; no materials left) marks the session, which may then end without it; no level moves and the screen says so. A delayed check that cannot be opened is skipped and comes back another day.
+
+**Topics without materials.** A topic whose file was removed stays in the list (marked), is left out of the plan, cannot be started and is never picked for a delayed check.
+
+**Thin topics.** A topic with fewer cards or problems than the usual minimum is studied with what it has. More is asked for at most every 12 hours.
+
+**The session record's counts** are reported by the mode when its study step ends and stored on the server then, not kept in the browser until the wrap-up.
+
+**Limits.** Test date at most 366 days ahead. A PDF at most 40 pages, a test at most 80 pages in all, checked before any AI call. An upload piece must be exactly the size the declared length calls for. Uploads stop at 350 MB for everyone together.
+
+**Claude's answers** are read after checking how the message ended (refused, cut off, too long), never with the SDK's `parse()` helper. Each kind of call has a timeout and one retry.
+
+**Database.** Only production builds run migrations, and the database is connected to the Production environment only.
 
 ---
 
@@ -169,7 +187,7 @@ Tests (each written and seen failing before its code), using `today = '2026-11-1
 
 - [ ] **modes and minutes:** memorization → `flashcards`, 10; application and concept → `practice`, 15; every session's minutes are within 10–15.
 - [ ] **worked example (full length leaves D and C unreviewed, so sessions shrink):** test `2026-11-21`, 30 min/day, topics A (memorization, confidence 2), B (application, 1), C (concept, 4), D (memorization, 3), all level 0, never studied → day 18 = `[B learn 10, A learn 10, D learn 10]`, day 19 = `[C learn 10, B review 10, C review 10]`, day 20 = `[B review 10, A review 10, D review 10]`, day 21 = test day with no sessions; shortage `null`.
-- [ ] **full length when it fits:** same topics, 45 min/day, test `2026-11-25` → no shortage and both practice topics keep 15-minute sessions.
+- [ ] **full length when it fits:** same topics, 50 min/day, test `2026-11-25` → no shortage and both practice topics keep 15-minute sessions.
 - [ ] **weakest first:** lower level beats lower confidence; a check score outweighs confidence within a level; ties fall back to position.
 - [ ] **daily cap:** `minutesPlanned ≤ minutesAvailable` on every day; with `minutesDoneToday = 15` today's `minutesAvailable` is `minutesPerDay − 15`.
 - [ ] **shrink to fit:** 25 min/day with two practice topics → `[15, 10]` on one day.
