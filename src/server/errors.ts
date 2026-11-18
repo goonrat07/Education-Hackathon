@@ -16,6 +16,16 @@ export class InvalidRequestError extends Error {
   }
 }
 
+/** A topic has no passages left behind it (its file was removed), so nothing can be written for it. */
+export class NoMaterialError extends InvalidRequestError {
+  constructor(topicName: string) {
+    super(
+      `"${topicName}" has nothing from your materials behind it any more, so there is nothing to study it from. Add a file that covers it, merge it into another topic, or delete it.`,
+    );
+    this.name = "NoMaterialError";
+  }
+}
+
 /** The server is missing something it needs to run at all (for example the database connection). */
 export class SetupIncompleteError extends Error {
   constructor(public readonly missing: string) {

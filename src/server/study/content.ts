@@ -1,5 +1,7 @@
 import "server-only";
 import {
+  AI_BACKGROUND_RESERVE,
+  AI_DAILY_CALL_LIMIT,
   CHECK_QUESTIONS_REQUESTED,
   FLASHCARDS_PER_TOPIC,
   MIN_FLASHCARDS,
@@ -24,8 +26,9 @@ import {
 } from "@/server/data/items";
 import { onlyOnce } from "@/server/data/locks";
 import { listTopicPassages } from "@/server/data/passages";
-import type { Topic } from "@/server/data/topics";
-import { InvalidRequestError } from "@/server/errors";
+import { getTopic, type Topic } from "@/server/data/topics";
+import { hasBackgroundHeadroom } from "@/server/data/usage";
+import { NoMaterialError } from "@/server/errors";
 
 /** Which kinds of item each mode studies. */
 export const KINDS_FOR_MODE: Record<ModeId, ItemKind[]> = {
@@ -35,11 +38,7 @@ export const KINDS_FOR_MODE: Record<ModeId, ItemKind[]> = {
 
 async function topicPassages(ctx: AiContext, topic: Topic) {
   const passages = await listTopicPassages(ctx.userId, topic.id);
-  if (passages.length === 0) {
-    throw new InvalidRequestError(
-      `"${topic.name}" has no passages from your materials behind it, so there is nothing to study it from.`,
-    );
-  }
+  if (passages.length === 0) throw new NoMaterialError(topic.name);
   return labelPassages(passages);
 }
 
@@ -112,4 +111,22 @@ export async function ensureCheckSet(ctx: AiContext, topic: Topic): Promise<stri
     }
     return createCheckSet(ctx.userId, topic.testId, topic.id, verified.slice(0, CHECK_TARGET_QUESTIONS));
   });
+}
+
+/**
+ * Writes a topic's next check before the student needs it, so it opens
+ * instantly. Best effort: it is skipped when the student is close to the
+ * day's limit (those calls are kept for answering and grading), and a failure
+ * here is not an error, because the check is written on demand anyway.
+ */
+export async function prepareCheckAhead(ctx: AiContext, topicId: string | null): Promise<void> {
+  if (!topicId) return;
+  try {
+    const budget = { limit: AI_DAILY_CALL_LIMIT, reserve: AI_BACKGROUND_RESERVE };
+    if (!(await hasBackgroundHeadroom(ctx.userId, ctx.today, budget))) return;
+    const topic = await getTopic(ctx.userId, topicId);
+    if (topic && topic.level < 3) await ensureCheckSet(ctx, topic);
+  } catch (error) {
+    console.warn("Could not prepare a check ahead of time", error);
+  }
 }

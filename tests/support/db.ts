@@ -3,7 +3,7 @@ import { getDb, schema } from "@/db";
 
 /** Empties every table. Each integration test starts from a blank database. */
 export async function resetDb(): Promise<void> {
-  await getDb().execute(sql`TRUNCATE TABLE "user", verification, rate_limit CASCADE`);
+  await getDb().execute(sql`TRUNCATE TABLE "user", verification, rate_limit, ai_usage_total CASCADE`);
 }
 
 let counter = 0;

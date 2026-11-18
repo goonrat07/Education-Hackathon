@@ -5,7 +5,7 @@ import { LevelName } from "@/components/level-mark";
 import { OptionList, Reveal } from "@/components/modes/practice";
 import { RichText } from "@/components/rich-text";
 import { SourceLink } from "@/components/source-panel";
-import { api, messageFrom } from "@/lib/api";
+import { api, blocksCheck, messageFrom } from "@/lib/api";
 import type { PublicQuestion } from "@/lib/items";
 import { useLoad } from "@/lib/use-load";
 import type { CheckOutcome, CheckView } from "@/server/study/checks";
@@ -113,23 +113,47 @@ function Results({
   );
 }
 
+/** How to go on when a check could not be written or graded. */
+interface SkipProps {
+  skipLabel: string;
+  /** What skipping means for the student's levels. */
+  skipNote: string;
+  onSkip: () => void;
+}
+
+/** The way out when the app itself could not produce or grade a check. */
+function SkipOffer({ skipLabel, skipNote, onSkip }: SkipProps) {
+  return (
+    <div className="mt-5 rounded-[3px] bg-rule-faint px-4 py-3">
+      <p>This isn&rsquo;t something you did. {skipNote}</p>
+      <button type="button" className="link mt-2" onClick={onSkip}>
+        {skipLabel}
+      </button>
+    </div>
+  );
+}
+
 /**
  * A check: 3 to 5 questions the student has not seen before, answered one at
  * a time and graded together. Used for the delayed check that opens a
  * session and the check that ends it.
+ *
+ * If the check cannot be written or graded at all, the student is offered a
+ * way to go on without it rather than being left stuck.
  */
 export function CheckStep({
   sessionId,
   kind,
   doneLabel,
   onDone,
+  ...skip
 }: {
   sessionId: string;
   kind: "session" | "delayed";
   doneLabel: string;
   onDone: (outcome: CheckOutcome) => void;
-}) {
-  const { data: view, error, retry } = useLoad(`${sessionId}:${kind}`, () =>
+} & SkipProps) {
+  const { data: view, error, cause, retry } = useLoad(`${sessionId}:${kind}`, () =>
     api<CheckView>(`/api/sessions/${sessionId}/checks`, { body: { kind } }),
   );
 
@@ -142,6 +166,7 @@ export function CheckStep({
         <button type="button" className="btn btn-paper mt-3" onClick={retry}>
           Try again
         </button>
+        {blocksCheck(cause) && <SkipOffer {...skip} />}
       </div>
     );
   }
@@ -153,23 +178,27 @@ export function CheckStep({
       </div>
     );
   }
-  return <CheckBody key={view.checkId} view={view} doneLabel={doneLabel} onDone={onDone} />;
+  return <CheckBody key={view.checkId} view={view} doneLabel={doneLabel} onDone={onDone} skip={skip} />;
 }
 
 function CheckBody({
   view,
   doneLabel,
   onDone,
+  skip,
 }: {
   view: CheckView;
   doneLabel: string;
   onDone: (outcome: CheckOutcome) => void;
+  skip: SkipProps;
 }) {
   const [outcome, setOutcome] = useState<CheckOutcome | null>(view.outcome);
   const [index, setIndex] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // True when grading failed for a reason the student cannot fix.
+  const [canSkip, setCanSkip] = useState(false);
 
   if (outcome) {
     return (
@@ -206,6 +235,7 @@ function CheckBody({
       setOutcome(result);
     } catch (e) {
       setError(messageFrom(e));
+      setCanSkip(blocksCheck(e));
     } finally {
       setSubmitting(false);
     }
@@ -287,6 +317,7 @@ function CheckBody({
           {error}
         </p>
       )}
+      {error && canSkip && <SkipOffer {...skip} />}
 
       {!draft.flagged && (
         <p className="mt-6 text-sm">

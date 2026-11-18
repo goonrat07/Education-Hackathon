@@ -53,25 +53,13 @@ export interface SessionRunnerProps {
   initialPhase: Exclude<Phase, "summary">;
 }
 
-/** What the study step left in this tab's storage, if the page was reloaded after it. */
-function restore(storageKey: string): { stats: Stats; studied: boolean } | null {
-  try {
-    const saved = window.sessionStorage.getItem(storageKey);
-    if (!saved) return null;
-    const parsed = JSON.parse(saved) as { stats?: Stats; studied?: boolean };
-    return parsed.stats ? { stats: parsed.stats, studied: Boolean(parsed.studied) } : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Runs one session from start to finish. Every mode goes through the same
  * shell: an optional delayed check on an earlier topic, the mode itself, the
  * end-of-session check, a confidence rating, and the screen showing what moved.
  *
- * Rendered in the browser only (see session-runner-loader.tsx), so it can read
- * this tab's storage while it sets up.
+ * Where the session has got to is kept on the server (see the page that
+ * renders this), so reloading or reopening it picks up at the right step.
  */
 export function SessionRunner({
   sessionId,
@@ -83,27 +71,31 @@ export function SessionRunner({
   initialPhase,
 }: SessionRunnerProps) {
   const router = useRouter();
-  const storageKey = `study-coach:session:${sessionId}`;
-  const [restored] = useState(() => restore(storageKey));
-  const [phase, setPhase] = useState<Phase>(restored?.studied && initialPhase === "study" ? "check" : initialPhase);
-  const [stats, setStats] = useState<Stats>(restored?.stats ?? { itemsAttempted: 0, itemsCorrect: 0 });
+  const [phase, setPhase] = useState<Phase>(initialPhase);
+  // Counts the server has not confirmed it stored; sent again with the wrap-up.
+  const [unsaved, setUnsaved] = useState<Stats | null>(null);
+  const [checkSkipped, setCheckSkipped] = useState(false);
   const [confidence, setConfidence] = useState<number | null>(null);
   const [summary, setSummary] = useState<SessionSummary | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const goTo = useCallback((next: Phase) => {
+    setPhase(next);
+    window.scrollTo({ top: 0 });
+  }, []);
+
   const finishStudy = useCallback(
     (result: Stats) => {
-      setStats(result);
-      try {
-        window.sessionStorage.setItem(storageKey, JSON.stringify({ stats: result, studied: true }));
-      } catch {
-        // Storage unavailable: the results still live in memory for this visit.
-      }
-      setPhase("check");
-      window.scrollTo({ top: 0 });
+      goTo("check");
+      // Stored on the server straight away, so the counts survive a closed tab.
+      setUnsaved(result);
+      api(`/api/sessions/${sessionId}/studied`, { body: result }).then(
+        () => setUnsaved(null),
+        () => undefined,
+      );
     },
-    [storageKey],
+    [goTo, sessionId],
   );
 
   async function finishSession() {
@@ -112,15 +104,10 @@ export function SessionRunner({
     setError(null);
     try {
       const result = await api<SessionSummary>(`/api/sessions/${sessionId}/complete`, {
-        body: { ...stats, confidence },
+        body: { confidence, ...(unsaved ?? {}) },
       });
       setSummary(result);
       setPhase("summary");
-      try {
-        window.sessionStorage.removeItem(storageKey);
-      } catch {
-        // Ignore: nothing depends on the entry being removed.
-      }
       window.scrollTo({ top: 0 });
       // The dashboard and plan now show the updated plan when the student goes back.
       router.refresh();
@@ -165,10 +152,10 @@ export function SessionRunner({
             sessionId={sessionId}
             kind="delayed"
             doneLabel={`Start ${MODES[mode].label.toLowerCase()}`}
-            onDone={() => {
-              setPhase("study");
-              window.scrollTo({ top: 0 });
-            }}
+            onDone={() => goTo("study")}
+            skipLabel={`Skip it and start ${MODES[mode].label.toLowerCase()}`}
+            skipNote={`The check on ${delayedTopicName} will come back at the start of a later session.`}
+            onSkip={() => goTo("study")}
           />
         </section>
       )}
@@ -185,9 +172,12 @@ export function SessionRunner({
             sessionId={sessionId}
             kind="session"
             doneLabel="Continue"
-            onDone={() => {
-              setPhase("confidence");
-              window.scrollTo({ top: 0 });
+            onDone={() => goTo("confidence")}
+            skipLabel="Finish without the check"
+            skipNote={`Without a check no level can move, so ${topicName} stays where it is and comes back in your plan.`}
+            onSkip={() => {
+              setCheckSkipped(true);
+              goTo("confidence");
             }}
           />
         </section>
@@ -199,6 +189,11 @@ export function SessionRunner({
             How well do you know {topicName} now?
           </h2>
           <p className="mt-2 text-ink-soft">Be honest. Your plan uses this next to your check results.</p>
+          {checkSkipped && (
+            <p className="mt-3 rounded-[3px] bg-rule-faint px-4 py-3">
+              This session ends without a check, so the level of {topicName} doesn&rsquo;t change.
+            </p>
+          )}
           <div className="mt-5">
             <ConfidenceRating
               value={confidence}

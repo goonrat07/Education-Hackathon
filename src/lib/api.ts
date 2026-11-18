@@ -39,6 +39,26 @@ export async function api<T = unknown>(
   return data as T;
 }
 
+/**
+ * Error codes that mean a check could not be written or graded at all (Claude
+ * unreachable, busy or out of requests for the day; nothing usable written; no
+ * materials left). The student did nothing wrong, so they may go on without it.
+ */
+const CHECK_BLOCKERS = new Set([
+  "ai_limit",
+  "ai_ceiling",
+  "ai_unavailable",
+  "ai_busy",
+  "ai_refusal",
+  "ai_output",
+  "no_material",
+]);
+
+/** True when a failed check request is one the student can do nothing about. */
+export function blocksCheck(error: unknown): boolean {
+  return error instanceof ApiError && error.code !== undefined && CHECK_BLOCKERS.has(error.code);
+}
+
 /** The message to show for anything a request threw. */
 export function messageFrom(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Try again.";

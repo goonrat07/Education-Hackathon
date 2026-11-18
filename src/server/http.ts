@@ -2,8 +2,8 @@ import "server-only";
 import { ZodError, type z } from "zod";
 import { AI_DAILY_CALL_LIMIT } from "@/config/ai";
 import { AiBusyError, AiOutputError, AiRefusalError, AiUnavailableError } from "@/server/ai/client";
-import { AiLimitError } from "@/server/data/usage";
-import { InvalidRequestError, NotFoundError, SetupIncompleteError } from "@/server/errors";
+import { AiCeilingError, AiLimitError } from "@/server/data/usage";
+import { InvalidRequestError, NoMaterialError, NotFoundError, SetupIncompleteError } from "@/server/errors";
 import { UnauthorizedError } from "@/server/session";
 
 export function json(data: unknown, status = 200): Response {
@@ -21,6 +21,7 @@ export function errorResponse(error: unknown): Response {
   }
   if (error instanceof UnauthorizedError) return fail(401, "Sign in to continue.", "unauthorized");
   if (error instanceof NotFoundError) return fail(404, "That could not be found.", "not_found");
+  if (error instanceof NoMaterialError) return fail(400, error.message, "no_material");
   if (error instanceof InvalidRequestError) return fail(400, error.message, "invalid");
   if (error instanceof ZodError) return fail(400, "Some of what was sent is missing or not valid.", "invalid");
   if (error instanceof AiLimitError) {
@@ -28,6 +29,13 @@ export function errorResponse(error: unknown): Response {
       429,
       `You've used all ${AI_DAILY_CALL_LIMIT} of today's AI requests. They reset at midnight.`,
       "ai_limit",
+    );
+  }
+  if (error instanceof AiCeilingError) {
+    return fail(
+      429,
+      "Study Coach has used all the AI requests it allows in one day, across everyone using it. They reset tomorrow.",
+      "ai_ceiling",
     );
   }
   if (error instanceof AiUnavailableError) {

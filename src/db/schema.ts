@@ -294,6 +294,10 @@ export const studySessions = pgTable(
     readinessBefore: real("readiness_before").notNull().default(0),
     /** The earlier topic whose delayed check opens this session, if one was due. */
     delayedTopicId: uuid("delayed_topic_id").references(() => topics.id, { onDelete: "set null" }),
+    /** When the study step ended and reported its counts; the check and the wrap-up follow. */
+    studiedAt: timestamp("studied_at", { withTimezone: true }),
+    /** Set when the end-of-session check could not be written or graded, so the session may be finished without it. */
+    checkUnavailable: boolean("check_unavailable").notNull().default(false),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
   (t) => [index("sessions_test_idx").on(t.testId), index("sessions_topic_idx").on(t.topicId)],
@@ -377,6 +381,16 @@ export const aiUsage = pgTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.day] })],
 );
+
+/**
+ * Calls made by all students together on one day (UTC), for the app-wide
+ * ceiling. The one table that belongs to no student: it holds a running
+ * count per day and nothing else.
+ */
+export const aiUsageTotal = pgTable("ai_usage_total", {
+  day: date("day", { mode: "string" }).primaryKey(),
+  calls: integer("calls").notNull().default(0),
+});
 
 export const aiCalls = pgTable(
   "ai_calls",

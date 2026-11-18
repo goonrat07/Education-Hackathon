@@ -102,14 +102,23 @@ export async function loadTestState(userId: string, testId: string, today: strin
   };
 }
 
-/** The planner's input for a test as it stands today. */
+/** True when a topic still has passages behind it. Without any, nothing can be written for it. */
+export function hasMaterial(topic: { passageIds: string[] }): boolean {
+  return topic.passageIds.length > 0;
+}
+
+/**
+ * The planner's input for a test as it stands today. A topic whose materials
+ * were removed is left out: it cannot be studied until it is merged, deleted
+ * or covered by a new file.
+ */
 export function toPlanInput(state: TestState, today: string): PlanInput {
   return {
     today,
     testDate: state.test.testDate,
     minutesPerDay: state.test.minutesPerDay,
     minutesDoneToday: state.minutesDoneToday,
-    topics: state.topics.map((t) => ({
+    topics: state.topics.filter(hasMaterial).map((t) => ({
       id: t.id,
       position: t.position,
       type: t.type,

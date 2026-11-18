@@ -21,16 +21,18 @@ import { listTopicPassages } from "@/server/data/passages";
 import {
   findActiveSession,
   getSession,
+  recordStudied,
   saveSessionRecord,
   startSession,
   type StudySession,
 } from "@/server/data/sessions";
 import { getTopic, updateTopic } from "@/server/data/topics";
-import { InvalidRequestError, NotFoundError } from "@/server/errors";
+import { z } from "zod";
+import { InvalidRequestError, NoMaterialError, NotFoundError } from "@/server/errors";
 import type { UserContext } from "@/server/session";
 import { ensureStudyItems } from "./content";
 import { getPlanView } from "./plans";
-import type { TestState } from "./state";
+import { hasMaterial, type TestState } from "./state";
 
 /** How many items one session works through. */
 const FLASHCARDS_PER_SESSION = 12;
@@ -44,6 +46,7 @@ export async function beginSession(user: UserContext, testId: string, topicId: s
   const view = await getPlanView(user.userId, testId, user.today);
   const topic = view?.state.topics.find((t) => t.id === topicId);
   if (!view || !topic) throw new NotFoundError("Topic not found");
+  if (!hasMaterial(topic)) throw new NoMaterialError(topic.name);
 
   const mode = modeForType(topic.type);
   const plannedToday = view.plan.days.find((d) => d.date === user.today)?.sessions.find((s) => s.topicId === topicId);
@@ -62,7 +65,8 @@ export async function beginSession(user: UserContext, testId: string, topicId: s
         plannedMinutes: plannedToday?.minutes ?? MODES[mode].minutes,
         readinessBefore: view.state.readiness,
         // A topic studied on an earlier day gets its delayed check at the start of this session.
-        delayedTopicId: pickDelayedCheckTopic(view.state.topics, user.today, topicId),
+        // One that has lost its materials cannot be checked, so it is never picked.
+        delayedTopicId: pickDelayedCheckTopic(view.state.topics.filter(hasMaterial), user.today, topicId),
       }),
   );
 }
@@ -236,6 +240,8 @@ export interface SessionSummary extends Progress {
   next: NextSession | null;
   /** Sessions left in today's plan after this one. */
   remainingToday: number;
+  /** True when the end-of-session check could not be written or graded, so no level could move. */
+  checkMissing: boolean;
 }
 
 /** What a finished (or just-checked) session changed: levels, readiness and what is next. */
@@ -280,27 +286,57 @@ export async function summarizeSession(user: UserContext, sessionId: string): Pr
         }
       : null,
     remainingToday: today?.sessions.length ?? 0,
+    checkMissing: session.checkUnavailable && !checks.some((c) => c.kind === "session"),
   };
+}
+
+const studyCounts = z
+  .object({ itemsAttempted: z.number().int().min(0).max(1000), itemsCorrect: z.number().int().min(0).max(1000) })
+  .refine((c) => c.itemsCorrect <= c.itemsAttempted, { message: "itemsCorrect cannot exceed itemsAttempted" });
+
+/**
+ * Ends the study step of a session: whatever the mode, it reports how many
+ * items the student attempted and got right. The counts are stored now, so
+ * the session record is right even if the tab is closed before the wrap-up.
+ */
+export async function finishStudy(
+  user: UserContext,
+  sessionId: string,
+  result: { itemsAttempted: number; itemsCorrect: number },
+): Promise<void> {
+  const counts = studyCounts.parse(result);
+  const session = await getSession(user.userId, sessionId);
+  if (!session) throw new NotFoundError("Session not found");
+  if (session.status === "active") await recordStudied(user.userId, sessionId, counts);
 }
 
 /**
  * Finishes a session: saves the session record, stores the student's new
  * confidence rating, and reports what moved. The end-of-session check has to
- * be submitted first, because every session ends with one.
+ * be submitted first, because every session ends with one. The one exception
+ * is a check the server itself could not write or grade: that session may be
+ * finished without it, and no level moves.
+ *
+ * The counts come from what the study step reported when it ended. Counts
+ * passed here are used only when the study step never managed to report.
  */
 export async function completeSession(
   user: UserContext,
   sessionId: string,
-  input: { itemsAttempted: number; itemsCorrect: number; confidence: number },
+  input: { confidence: number; itemsAttempted?: number; itemsCorrect?: number },
 ): Promise<SessionSummary> {
   const session = await getSession(user.userId, sessionId);
   if (!session) throw new NotFoundError("Session not found");
 
   if (session.status === "active") {
     const checks = await listSessionChecks(user.userId, sessionId);
-    if (!checks.some((c) => c.kind === "session" && c.status === "submitted")) {
+    const checked = checks.some((c) => c.kind === "session" && c.status === "submitted");
+    if (!checked && !session.checkUnavailable) {
       throw new InvalidRequestError("Finish the check at the end of the session first.");
     }
+    const reported = session.studiedAt !== null;
+    const itemsAttempted = (reported ? session.itemsAttempted : input.itemsAttempted) ?? 0;
+    const itemsCorrect = Math.min(itemsAttempted, (reported ? session.itemsCorrect : input.itemsCorrect) ?? 0);
     const durationSeconds = Math.min(86_400, Math.max(0, Math.round((Date.now() - session.startedAt.getTime()) / 1000)));
     await saveSessionRecord(sessionId, {
       userId: user.userId,
@@ -309,9 +345,9 @@ export async function completeSession(
       mode: session.mode,
       startedAt: session.startedAt,
       durationSeconds,
-      itemsAttempted: input.itemsAttempted,
-      itemsCorrect: input.itemsCorrect,
-      score: input.itemsAttempted > 0 ? input.itemsCorrect / input.itemsAttempted : 0,
+      itemsAttempted,
+      itemsCorrect,
+      score: itemsAttempted > 0 ? itemsCorrect / itemsAttempted : 0,
       confidence: input.confidence,
     });
     await updateTopic(user.userId, session.topicId, { confidence: input.confidence });

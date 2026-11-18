@@ -89,20 +89,14 @@ function Pile({
       </button>
 
       {flipped ? (
-        <>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <button type="button" className="btn btn-paper btn-lg" onClick={() => answer(false)}>
-              Missed it
-            </button>
-            <button type="button" className="btn btn-ink btn-lg" onClick={() => answer(true)}>
-              Knew it
-            </button>
-          </div>
-          <p className="mt-4 flex flex-wrap items-baseline justify-between gap-3">
-            <SourceLink passageId={card.passageId} />
-            <FlagButton key={card.id} itemId={card.id} onFlagged={() => setTimeout(() => drop(card.id), 900)} />
-          </p>
-        </>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <button type="button" className="btn btn-paper btn-lg" onClick={() => answer(false)}>
+            Missed it
+          </button>
+          <button type="button" className="btn btn-ink btn-lg" onClick={() => answer(true)}>
+            Knew it
+          </button>
+        </div>
       ) : (
         <button type="button" className="btn btn-ink btn-lg mt-4 w-full" onClick={() => setFlipped(true)}>
           Show the answer
@@ -110,6 +104,11 @@ function Pile({
       )}
       <p className="mt-3 text-sm text-pencil">
         Say the answer in your head first, then flip. Missed cards come back sooner.
+      </p>
+      {/* Both sides of every card link to their passage and can be marked as wrong. */}
+      <p className="mt-4 flex flex-wrap items-baseline justify-between gap-3">
+        <SourceLink passageId={card.passageId} />
+        <FlagButton key={card.id} itemId={card.id} onFlagged={() => setTimeout(() => drop(card.id), 900)} />
       </p>
     </div>
   );

@@ -1,6 +1,7 @@
 /**
  * The one place AI settings live: which Claude model does each job, and how
- * many AI calls a student may make per day. Change them here and nowhere else.
+ * many AI calls a student (and everyone together) may make per day. Change
+ * them here and nowhere else.
  */
 
 /** Model for each job. Every entry starts as claude-sonnet-5-5. */
@@ -23,8 +24,25 @@ export const AI_MODELS = {
 
 export type AiTask = keyof typeof AI_MODELS;
 
-/** AI calls one student may make per day (their local day). Counted per request to Claude. */
-export const AI_DAILY_CALL_LIMIT = 120;
+/**
+ * AI calls one student may make per day (their local day). Counted per request
+ * to Claude. A session uses about 10 to 15, so this covers a long evening of
+ * study the night before a test.
+ */
+export const AI_DAILY_CALL_LIMIT = 250;
+
+/**
+ * AI calls all students together may make per day (UTC). Sign-up is open, so
+ * this is what bounds the bill if many accounts are created.
+ */
+export const AI_DAILY_CALL_CEILING = 1500;
+
+/**
+ * Calls kept back for what a student is doing right now (answering, grading).
+ * Once fewer than this are left for the day, checks are no longer written
+ * ahead of time in the background; they are written when the student reaches them.
+ */
+export const AI_BACKGROUND_RESERVE = 25;
 
 /** How hard Claude thinks on each job. Lower is faster and cheaper. */
 export const AI_EFFORT: Record<AiTask, "low" | "medium" | "high"> = {

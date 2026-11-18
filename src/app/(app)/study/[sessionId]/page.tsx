@@ -8,7 +8,7 @@ import { getTest } from "@/server/data/tests";
 import { getTopic } from "@/server/data/topics";
 import { pageUser } from "@/server/page-user";
 import { summarizeSession } from "@/server/study/sessions";
-import { SessionRunnerLoader } from "./session-runner-loader";
+import { SessionRunner } from "./session-runner";
 import { SummaryView } from "./summary-view";
 
 export const metadata: Metadata = { title: "Study session" };
@@ -34,14 +34,18 @@ async function Session({ params }: { params: Promise<{ sessionId: string }> }) {
   if (!test || !topic) notFound();
 
   const submitted = (kind: "session" | "delayed") => checks.some((c) => c.kind === kind && c.status === "submitted");
+  // Pick up where the session left off: wrap-up after the end check, the end
+  // check after the study step, otherwise the delayed check or the study step.
   const initialPhase = submitted("session")
     ? "confidence"
-    : delayedTopic && !submitted("delayed")
-      ? "delayed"
-      : "study";
+    : session.studiedAt
+      ? "check"
+      : delayedTopic && !submitted("delayed")
+        ? "delayed"
+        : "study";
 
   return (
-    <SessionRunnerLoader
+    <SessionRunner
       sessionId={session.id}
       testLabel={`${test.className}: ${test.name}`}
       topicName={topic.name}

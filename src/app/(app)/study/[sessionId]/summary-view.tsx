@@ -46,7 +46,14 @@ export function SummaryView({ summary }: { summary: SessionSummary }) {
           </li>
         ))}
       </ul>
-      {moved.length === 0 && (
+      {summary.checkMissing && (
+        <p className="mt-4 max-w-[60ch] rounded-[3px] bg-rule-faint px-4 py-3">
+          This session ended without a check on {summary.topicName}: the check could not be written or graded. A
+          level goes up only when a check is passed, so {summary.topicName} stays where it is and comes back in your
+          plan.
+        </p>
+      )}
+      {moved.length === 0 && !summary.checkMissing && (
         <p className="mt-4 max-w-[60ch] text-ink-soft">
           No level moved this time. A level goes up only when a check is passed, and the last step needs a check on
           a later day.

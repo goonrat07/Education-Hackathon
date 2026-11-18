@@ -1,14 +1,14 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { closeDb, getDb, schema } from "@/db";
-import type { McqContent } from "@/lib/items";
+import type { McqContent, ShortContent } from "@/lib/items";
 import type { Plan } from "@/lib/plan";
 import { createCheckSet } from "@/server/data/items";
 import { storePlan } from "@/server/data/plans";
 import type { UserContext } from "@/server/session";
 import { disputeCheckAnswer, openSessionCheck, submitCheck } from "@/server/study/checks";
 import { getPlanView } from "@/server/study/plans";
-import { beginSession, completeSession } from "@/server/study/sessions";
+import { beginSession, completeSession, finishStudy } from "@/server/study/sessions";
 import { loadTestState } from "@/server/study/state";
 import { createUser, resetDb } from "../support/db";
 
@@ -377,6 +377,145 @@ describe("finishing a session", () => {
     expect(learnTopics.map((s) => s.topicId)).toEqual([massTopic]);
     const state = await loadTestState(userId, testId, DAY1);
     expect(state!.readiness).toBeCloseTo(1 / 6, 5);
+  });
+});
+
+describe("the study step", () => {
+  it("keeps its counts on the server, so finishing from another tab saves the real numbers", async () => {
+    await addCheckSet(moleTopic, "A");
+    const session = await beginSession(ctx(DAY1), testId, moleTopic);
+    await finishStudy(ctx(DAY1), session.id, { itemsAttempted: 8, itemsCorrect: 6 });
+    await takeCheck(DAY1, session.id, "session", 4);
+
+    // A new tab knows nothing about the study step and sends only the confidence rating.
+    await completeSession(ctx(DAY1), session.id, { confidence: 4 });
+
+    const [row] = await getDb().select().from(schema.studySessions).where(eq(schema.studySessions.id, session.id));
+    expect(row.itemsAttempted).toBe(8);
+    expect(row.itemsCorrect).toBe(6);
+    expect(row.score).toBeCloseTo(0.75, 5);
+    expect(row.studiedAt).toBeInstanceOf(Date);
+  });
+
+  it("prefers what the study step reported over numbers sent at the end", async () => {
+    await addCheckSet(moleTopic, "A");
+    const session = await beginSession(ctx(DAY1), testId, moleTopic);
+    await finishStudy(ctx(DAY1), session.id, { itemsAttempted: 8, itemsCorrect: 2 });
+    await takeCheck(DAY1, session.id, "session", 4);
+    await completeSession(ctx(DAY1), session.id, { itemsAttempted: 8, itemsCorrect: 8, confidence: 4 });
+
+    const [row] = await getDb().select().from(schema.studySessions).where(eq(schema.studySessions.id, session.id));
+    expect(row.itemsCorrect).toBe(2);
+  });
+
+  it("refuses counts that cannot be right", async () => {
+    const session = await beginSession(ctx(DAY1), testId, moleTopic);
+    await expect(finishStudy(ctx(DAY1), session.id, { itemsAttempted: 3, itemsCorrect: 4 })).rejects.toThrow();
+  });
+
+  it("is not reported for someone else's session", async () => {
+    const session = await beginSession(ctx(DAY1), testId, moleTopic);
+    const stranger = await createUser("stranger");
+    await expect(
+      finishStudy({ ...ctx(DAY1), userId: stranger }, session.id, { itemsAttempted: 3, itemsCorrect: 3 }),
+    ).rejects.toThrow(/not found/i);
+  });
+});
+
+describe("a session whose check cannot be produced", () => {
+  // No check set is seeded and the test environment has no Claude key, so a
+  // check that has to be written (or typed answers that have to be graded) fails.
+
+  it("can be finished without the check, and no level moves", async () => {
+    const session = await beginSession(ctx(DAY1), testId, moleTopic);
+    await finishStudy(ctx(DAY1), session.id, { itemsAttempted: 5, itemsCorrect: 4 });
+    await expect(openSessionCheck(ctx(DAY1), session.id, "session")).rejects.toThrow();
+
+    const summary = await completeSession(ctx(DAY1), session.id, { confidence: 3 });
+
+    expect(summary.checkMissing).toBe(true);
+    expect(summary.movements).toEqual([]);
+    expect((await topicLevel(moleTopic)).level).toBe(0);
+    const [row] = await getDb().select().from(schema.studySessions).where(eq(schema.studySessions.id, session.id));
+    expect(row.status).toBe("completed");
+    expect(row.itemsAttempted).toBe(5);
+  });
+
+  it("can be finished when the typed answers could not be graded", async () => {
+    await createCheckSet(
+      userId,
+      testId,
+      moleTopic,
+      [1, 2, 3].map((n) => ({
+        kind: "short" as const,
+        content: {
+          question: `Explain idea ${n}.`,
+          answer: "A mole is a fixed number of particles.",
+          explanation: "From the notes.",
+        } satisfies ShortContent,
+        passageId,
+        quote: "6.022 × 10^23 particles",
+      })),
+    );
+    const session = await beginSession(ctx(DAY1), testId, moleTopic);
+    const check = await openSessionCheck(ctx(DAY1), session.id, "session");
+    const answers = check.questions.map((q) => ({ itemId: q.id, response: "it is a counting unit for particles" }));
+    await expect(submitCheck(ctx(DAY1), check.checkId, answers)).rejects.toThrow();
+
+    const summary = await completeSession(ctx(DAY1), session.id, { confidence: 2 });
+    expect(summary.checkMissing).toBe(true);
+    expect((await topicLevel(moleTopic)).level).toBe(0);
+  });
+
+  it("is not marked that way by a delayed check that failed", async () => {
+    await addCheckSet(moleTopic, "A");
+    const s1 = await beginSession(ctx(DAY1), testId, moleTopic);
+    await takeCheck(DAY1, s1.id, "session", 4);
+    await completeSession(ctx(DAY1), s1.id, { confidence: 3 });
+
+    // Day 2: the delayed check on the mole topic has no set ready and cannot be written.
+    const s2 = await beginSession(ctx(DAY2), testId, massTopic);
+    expect(s2.delayedTopicId).toBe(moleTopic);
+    await expect(openSessionCheck(ctx(DAY2), s2.id, "delayed")).rejects.toThrow();
+    await expect(completeSession(ctx(DAY2), s2.id, { confidence: 3 })).rejects.toThrow(/check/i);
+  });
+});
+
+describe("a topic whose materials were removed", () => {
+  async function removeMoleMaterial(): Promise<void> {
+    const db = getDb();
+    // The molar mass topic keeps a passage of its own; the mole topic loses its only one.
+    const [file] = await db.select().from(schema.files).where(eq(schema.files.testId, testId));
+    const [other] = await db
+      .insert(schema.passages)
+      .values({ userId, testId, fileId: file.id, page: 2, position: 1, kind: "text", text: "Molar mass is in g/mol." })
+      .returning();
+    await db.insert(schema.topicPassages).values({ topicId: massTopic, passageId: other.id, userId });
+    await db.delete(schema.passages).where(eq(schema.passages.id, passageId));
+  }
+
+  it("is left out of the plan", async () => {
+    await removeMoleMaterial();
+    const view = await getPlanView(userId, testId, DAY1);
+    const planned = view!.plan.days.flatMap((d) => d.sessions.map((s) => s.topicId));
+    expect(planned).toContain(massTopic);
+    expect(planned).not.toContain(moleTopic);
+  });
+
+  it("cannot be started", async () => {
+    await removeMoleMaterial();
+    await expect(beginSession(ctx(DAY1), testId, moleTopic)).rejects.toThrow(/materials/i);
+  });
+
+  it("is never chosen for the delayed check, so it cannot block another topic's session", async () => {
+    await addCheckSet(moleTopic, "A");
+    const s1 = await beginSession(ctx(DAY1), testId, moleTopic);
+    await takeCheck(DAY1, s1.id, "session", 4);
+    await completeSession(ctx(DAY1), s1.id, { confidence: 3 });
+    await removeMoleMaterial();
+
+    const s2 = await beginSession(ctx(DAY2), testId, massTopic);
+    expect(s2.delayedTopicId).toBeNull();
   });
 });
 

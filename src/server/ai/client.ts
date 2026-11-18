@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { z } from "zod";
 import {
+  AI_DAILY_CALL_CEILING,
   AI_DAILY_CALL_LIMIT,
   AI_EFFORT,
   AI_MAX_TOKENS,
@@ -95,7 +96,10 @@ export async function runClaude<T>(
   schema: z.ZodType<T>,
 ): Promise<T> {
   const anthropic = getClient();
-  await reserveAiCall(ctx.userId, ctx.today, AI_DAILY_CALL_LIMIT);
+  await reserveAiCall(ctx.userId, ctx.today, AI_DAILY_CALL_LIMIT, {
+    day: new Date().toISOString().slice(0, 10),
+    limit: AI_DAILY_CALL_CEILING,
+  });
 
   const model = AI_MODELS[task];
   const started = Date.now();

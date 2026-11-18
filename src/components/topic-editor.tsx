@@ -168,7 +168,8 @@ function TopicRow({
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-sm text-redpen">No passages from your files are linked to this topic.</p>
+            <p className="mt-2 text-sm text-redpen">Nothing in your files covers this topic any more, so it is left out of your plan. Add a file that covers
+              it, merge it into another topic, or delete it.</p>
           )}
         </div>
 

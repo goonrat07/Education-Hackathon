@@ -23,9 +23,11 @@ import {
 import { claimCheckSet, flagItem, listCheckSetItems, type Item } from "@/server/data/items";
 import { onlyOnce } from "@/server/data/locks";
 import { listTopicPassages } from "@/server/data/passages";
-import { getSession } from "@/server/data/sessions";
+import { getSession, markCheckUnavailable } from "@/server/data/sessions";
+import { AiCeilingError, AiLimitError } from "@/server/data/usage";
 import { getTopic, setTopicLevel } from "@/server/data/topics";
-import { InvalidRequestError, NotFoundError } from "@/server/errors";
+import { AiBusyError, AiOutputError, AiRefusalError, AiUnavailableError } from "@/server/ai/client";
+import { InvalidRequestError, NoMaterialError, NotFoundError } from "@/server/errors";
 import type { UserContext } from "@/server/session";
 import { ensureCheckSet } from "./content";
 
@@ -106,15 +108,44 @@ async function outcomeOf(userId: string, check: Check, topicName: string): Promi
 }
 
 /**
+ * True for failures the student cannot fix by answering differently: the
+ * check could not be written or graded at all (Claude unreachable, busy, out
+ * of the day's requests, or with nothing usable to say; no materials left).
+ */
+function blocksCheck(error: unknown): boolean {
+  return (
+    error instanceof AiLimitError ||
+    error instanceof AiCeilingError ||
+    error instanceof AiUnavailableError ||
+    error instanceof AiBusyError ||
+    error instanceof AiRefusalError ||
+    error instanceof AiOutputError ||
+    error instanceof NoMaterialError
+  );
+}
+
+/**
  * Opens (or reopens) one of a session's checks: the delayed check on an
  * earlier topic at the start, or the check on the session's own topic at the end.
  * Questions are sent without answers.
+ *
+ * When the end check cannot be produced, the session is marked so that it can
+ * still be finished (without a check, and so without any level change).
  */
 export async function openSessionCheck(
   user: UserContext,
   sessionId: string,
   kind: "session" | "delayed",
 ): Promise<CheckView> {
+  try {
+    return await openCheckView(user, sessionId, kind);
+  } catch (error) {
+    if (kind === "session" && blocksCheck(error)) await markCheckUnavailable(user.userId, sessionId);
+    throw error;
+  }
+}
+
+async function openCheckView(user: UserContext, sessionId: string, kind: "session" | "delayed"): Promise<CheckView> {
   const session = await getSession(user.userId, sessionId);
   if (!session) throw new NotFoundError("Session not found");
   const topicId = kind === "delayed" ? session.delayedTopicId : session.topicId;
@@ -193,10 +224,18 @@ export async function submitCheck(
       studentAnswer: answer?.response ?? "",
     });
   }
-  const grades =
-    typed.length > 0
-      ? await gradeAnswers(user, await listTopicPassages(user.userId, topic.id), typed)
-      : new Map<string, { correct: boolean; feedback: string }>();
+  let grades = new Map<string, { correct: boolean; feedback: string }>();
+  if (typed.length > 0) {
+    try {
+      grades = await gradeAnswers(user, await listTopicPassages(user.userId, topic.id), typed);
+    } catch (error) {
+      // The answers could not be graded: the session may be finished without this check.
+      if (check.kind === "session" && check.sessionId && blocksCheck(error)) {
+        await markCheckUnavailable(user.userId, check.sessionId);
+      }
+      throw error;
+    }
+  }
 
   const answers = items.map((item) => {
     const answer = byItem.get(item.id);

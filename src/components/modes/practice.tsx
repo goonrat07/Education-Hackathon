@@ -165,6 +165,8 @@ export function PracticeMode({ sessionId, onFinish }: ModeProps) {
   const [checking, setChecking] = useState(false);
   const [reveal, setReveal] = useState<AnswerReveal | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // True once the student marks the problem on screen as wrong, before answering it.
+  const [flagged, setFlagged] = useState(false);
   const results = useRef(new Map<string, boolean>());
 
   if (loadError) {
@@ -233,6 +235,7 @@ export function PracticeMode({ sessionId, onFinish }: ModeProps) {
     setTyped("");
     setReveal(null);
     setError(null);
+    setFlagged(false);
     if (last) finish();
     else setIndex((i) => i + 1);
   }
@@ -255,7 +258,7 @@ export function PracticeMode({ sessionId, onFinish }: ModeProps) {
             chosen={choice}
             onChoose={setChoice}
             correctIndex={reveal?.correctIndex}
-            disabled={checking}
+            disabled={checking || flagged}
           />
         ) : (
           <div>
@@ -268,7 +271,7 @@ export function PracticeMode({ sessionId, onFinish }: ModeProps) {
                 className="field"
                 autoComplete="off"
                 value={typed}
-                disabled={checking || reveal !== null}
+                disabled={checking || flagged || reveal !== null}
                 onChange={(e) => setTyped(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && canCheck && !reveal) void check(typed);
@@ -280,7 +283,7 @@ export function PracticeMode({ sessionId, onFinish }: ModeProps) {
                 className="field min-h-24"
                 rows={3}
                 value={typed}
-                disabled={checking || reveal !== null}
+                disabled={checking || flagged || reveal !== null}
                 onChange={(e) => setTyped(e.target.value)}
               />
             )}
@@ -289,14 +292,29 @@ export function PracticeMode({ sessionId, onFinish }: ModeProps) {
       </div>
 
       {!reveal && (
-        <p className="mt-3">
+        <p className="mt-3 flex flex-wrap items-baseline justify-between gap-3">
           <SourceLink passageId={question.passageId} className="link link-quiet text-sm">
             See where this comes from in your materials
           </SourceLink>
+          <FlagButton
+            key={question.id}
+            itemId={question.id}
+            onFlagged={() => {
+              // A problem the student says is wrong does not count either way.
+              results.current.delete(question.id);
+              setFlagged(true);
+            }}
+          />
         </p>
       )}
 
-      {!reveal && (
+      {!reveal && flagged && (
+        <button type="button" className="btn btn-ink btn-lg mt-5" onClick={next}>
+          {last ? "Go to the check" : "Next problem"}
+        </button>
+      )}
+
+      {!reveal && !flagged && (
         <div className="mt-5 flex flex-wrap items-center gap-4">
           <button
             type="button"
