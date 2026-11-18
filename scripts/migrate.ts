@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import { migrationTarget } from "../src/db/migration-target";
+import { withStrictSsl } from "../src/db/pool";
 
 // Next.js loads env files itself; this script runs outside it.
 config({ path: [".env.development.local", ".env.local"], quiet: true });
@@ -19,7 +20,7 @@ async function main() {
     console.log(`migrate: skipping migrations (${target.skip})`);
     return;
   }
-  const pool = new pg.Pool({ connectionString: target.url, max: 1 });
+  const pool = new pg.Pool({ connectionString: withStrictSsl(target.url), max: 1 });
   try {
     await migrate(drizzle(pool), {
       migrationsFolder: path.join(process.cwd(), "src/db/migrations"),

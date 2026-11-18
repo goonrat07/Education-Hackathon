@@ -4,9 +4,7 @@ A web app for middle and high school students. Add a test, upload your notes and
 your teacher's handouts, and get a day-by-day study plan with flashcards and
 practice problems made only from what you uploaded.
 
-Its address is **https://study-coach-edu.vercel.app**. Until a database is
-connected (see [Hosting](#hosting)) that address shows a "not open yet" screen
-instead of the sign-in form.
+Live at **https://study-coach-edu.vercel.app**
 
 ## How it works
 
@@ -132,7 +130,7 @@ Environment variables on Vercel:
 
 | Name | What it is |
 | --- | --- |
-| `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | Set by the Neon integration. |
+| `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | Set by the Neon integration, for Production only. |
 | `ANTHROPIC_API_KEY` | Your Claude API key. Server only. |
 | `BETTER_AUTH_SECRET` | Random string that signs sign-in cookies. |
 | `BETTER_AUTH_URL` | The site's address, `https://study-coach-edu.vercel.app`. |
