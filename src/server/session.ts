@@ -1,5 +1,6 @@
 import "server-only";
 import { cookies, headers } from "next/headers";
+import { databaseConfigured } from "@/db";
 import { isValidTimeZone, localDate } from "@/lib/dates";
 import { getAuth } from "@/server/auth";
 
@@ -30,6 +31,8 @@ export async function getUser(): Promise<UserContext | null> {
   const requestHeaders = await headers();
   const zone = (await cookies()).get(TIMEZONE_COOKIE)?.value ?? "";
 
+  // Nobody can be signed in on a server whose database is not connected yet.
+  if (!databaseConfigured()) return null;
   const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (!session) return null;
   const timezone = isValidTimeZone(zone) ? zone : "UTC";

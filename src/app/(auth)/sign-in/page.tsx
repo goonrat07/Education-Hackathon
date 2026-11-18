@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { LevelName } from "@/components/level-mark";
+import { databaseConfigured } from "@/db";
 import { googleEnabled } from "@/server/auth";
 import { getUser } from "@/server/session";
 import { SignInForm } from "./sign-in-form";
@@ -49,10 +50,20 @@ export default function SignInPage() {
       </section>
 
       <section className="sheet p-6 sm:p-8">
-        {/* The form reads the address bar (for a sign-in error), which is only known per request. */}
-        <Suspense fallback={<div className="h-72" aria-busy="true" />}>
-          <SignInForm googleEnabled={googleEnabled} />
-        </Suspense>
+        {databaseConfigured() ? (
+          // The form reads the address bar (for a sign-in error), which is only known per request.
+          <Suspense fallback={<div className="h-72" aria-busy="true" />}>
+            <SignInForm googleEnabled={googleEnabled} />
+          </Suspense>
+        ) : (
+          <div role="status">
+            <h2 className="text-xl">Not open yet</h2>
+            <p className="mt-3 text-ink-soft">
+              This copy of Study Coach is still being set up: its database isn&rsquo;t connected, so nobody can sign
+              in yet. Check back soon.
+            </p>
+          </div>
+        )}
       </section>
     </main>
   );

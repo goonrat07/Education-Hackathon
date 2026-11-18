@@ -15,3 +15,11 @@ export class InvalidRequestError extends Error {
     this.name = "InvalidRequestError";
   }
 }
+
+/** The server is missing something it needs to run at all (for example the database connection). */
+export class SetupIncompleteError extends Error {
+  constructor(public readonly missing: string) {
+    super(`Setup incomplete: ${missing} is not configured`);
+    this.name = "SetupIncompleteError";
+  }
+}
