@@ -65,6 +65,25 @@ export function guardPool(pool: pg.Pool, options: { trustIdleMs?: number } = {})
   return pool;
 }
 
+/**
+ * How the app's pool is set up. Every wait has a limit, because a paused
+ * server instance can leave a query waiting on a connection that will never
+ * answer: without limits that query would hold its place in the pool for
+ * good, and once every place is held, every later request would hang.
+ */
+export const POOL_SETTINGS = {
+  max: 10,
+  /** Idle connections are closed quickly; opening one takes a few milliseconds. */
+  idleTimeoutMillis: 5000,
+  /** A request waits this long for a connection, then fails instead of hanging. */
+  connectionTimeoutMillis: 10_000,
+  /** No query here takes more than a moment; one with no answer after this is given up on and its connection destroyed. */
+  query_timeout: 20_000,
+  /** Lets the operating system notice a connection whose other end is gone. */
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10_000,
+} as const;
+
 /** A connection unused for longer than this is checked before it is used again. */
 const DEFAULT_TRUST_IDLE_MS = 2000;
 

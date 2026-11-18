@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import pg from "pg";
 import { afterEach, describe, expect, it } from "vitest";
-import { guardPool, withStrictSsl } from "@/db/pool";
+import { guardPool, POOL_SETTINGS, withStrictSsl } from "@/db/pool";
 
 const URL = process.env.DATABASE_URL!;
 const pools: pg.Pool[] = [];
@@ -86,6 +86,43 @@ describe("a guarded pool", () => {
 
     // Without an error listener on the pool this would have crashed the process.
     expect(await backend(p)).not.toBe(before);
+  });
+});
+
+describe("the pool's settings", () => {
+  it("make a query that gets no answer give up, and free its place in the pool", async () => {
+    // One place only, so a query stuck forever would block everything after it.
+    const p = guardPool(new pg.Pool({ ...POOL_SETTINGS, connectionString: URL, max: 1, query_timeout: 400 }));
+    pools.push(p);
+    const stuck = await backend(p);
+    // The database stops answering on this connection without closing it:
+    // what a query in flight looks like after the server instance was paused.
+    process.kill(stuck, "SIGSTOP");
+    try {
+      await expect(p.query("select 1")).rejects.toThrow(/timeout/i);
+      expect(await backend(p)).not.toBe(stuck);
+    } finally {
+      process.kill(stuck, "SIGCONT");
+    }
+  });
+
+  it("give every query a time limit and every wait for a connection a time limit", () => {
+    expect(POOL_SETTINGS.query_timeout).toBeGreaterThan(0);
+    expect(POOL_SETTINGS.query_timeout).toBeLessThanOrEqual(60_000);
+    expect(POOL_SETTINGS.connectionTimeoutMillis).toBeGreaterThan(0);
+    expect(POOL_SETTINGS.keepAlive).toBe(true);
+  });
+
+  it("fail a request for a connection instead of waiting forever when every place is taken", async () => {
+    const p = guardPool(new pg.Pool({ ...POOL_SETTINGS, connectionString: URL, max: 1, connectionTimeoutMillis: 300 }));
+    pools.push(p);
+    const held = await p.connect();
+    try {
+      await expect(p.query("select 1")).rejects.toThrow(/timeout/i);
+    } finally {
+      held.release();
+    }
+    expect((await p.query("select 1 as ok")).rows[0].ok).toBe(1);
   });
 });
 
