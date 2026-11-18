@@ -4,7 +4,9 @@ A web app for middle and high school students. Add a test, upload your notes and
 your teacher's handouts, and get a day-by-day study plan with flashcards and
 practice problems made only from what you uploaded.
 
-Live at **https://study-coach-edu.vercel.app**
+Its address is **https://study-coach-edu.vercel.app**. Until a database is
+connected (see [Hosting](#hosting)) that address shows a "not open yet" screen
+instead of the sign-in form.
 
 ## How it works
 
@@ -27,6 +29,9 @@ Each topic is at one of four levels: Not started, Learning, Got it, Locked in.
   A topic studied on an earlier day gets its delayed check at the start of a
   later session.
 - A failed check never changes a level. Neither does time spent or confidence.
+- If a check cannot be written or graded (Claude is down, or the day's AI
+  requests are used up), the session can still be finished. It ends without a
+  check, the screen says so, and no level moves.
 
 A test's readiness bar is the average of its topics' levels
 (0, 1/3, 2/3 and 1).
@@ -53,14 +58,24 @@ always give the same plan. Claude only writes the short explanation of it.
   in that passage is thrown away before it is stored.
 - Every generated answer is solved a second time by a separate request that
   never sees the first answer. If the two disagree, the item is discarded.
+  Two numbers agree only when they are the same value as written (18.0 and
+  18.02 agree; 1939 and 1944 do not).
+- A topic whose file you remove has nothing left behind it. It is marked in
+  the topic list and left out of the plan until you add a file that covers
+  it, merge it into another topic, or delete it.
 
 ## Settings you can change in one place
 
 | What | Where |
 | --- | --- |
-| Which Claude model does each job; daily AI limit per student | `src/config/ai.ts` |
-| Session lengths, check size, pass mark, level weights | `src/config/study.ts` |
-| File size and count limits, per-student storage ceilings | `src/config/uploads.ts` |
+| Which Claude model does each job; daily AI limit per student (250 calls); daily ceiling for everyone together (1,500 calls); timeouts | `src/config/ai.ts` |
+| Session lengths, check size, pass mark, level weights, how far ahead a test can be | `src/config/study.ts` |
+| File size and count limits, pages per PDF (40) and per test (80), storage ceilings per student and in total | `src/config/uploads.ts` |
+
+One study session uses about 10 to 15 AI calls. Sign-up is open to anyone
+with the address, so the ceiling for everyone together is what bounds the
+bill; it is also worth setting a monthly spend limit on the key in the
+[Claude Console](https://platform.claude.com).
 
 ## Run it on your own computer
 
@@ -98,15 +113,20 @@ npm test
 ```
 
 Unit tests cover the plan logic, the level rules, dates, quote checking, answer
-comparison and math splitting. Integration tests run against a local Postgres
-database (`studycoach_test`) and cover account isolation, the session record,
-checks and levels, missed days, the daily AI limit and deleting an account.
+comparison, math splitting, reading Claude's answers, and the grounding and
+verification steps (with Claude's replies scripted). Integration tests run
+against a local Postgres database (`studycoach_test`) and cover account
+isolation, the session record, checks and levels, sessions whose check cannot
+be written, missed days, uploads and page limits, the AI limits and deleting
+an account.
 
 ## Hosting
 
 The app runs on Vercel's free plan with a free Neon Postgres database.
 Database changes in `src/db/migrations` are applied automatically during each
-build.
+production build. Preview builds never change the database, and the database
+is connected to the Production environment only, so a preview shows the "not
+open yet" screen instead of live data.
 
 Environment variables on Vercel:
 
@@ -141,7 +161,8 @@ in `src/server/data/sessions.ts`). A new mode needs three things:
 
 1. An entry in `MODES` in `src/lib/modes.ts`.
 2. A component in `src/components/modes/` that takes `ModeProps` and calls
-   `onFinish({ itemsAttempted, itemsCorrect })` when the student is done.
+   `onFinish({ itemsAttempted, itemsCorrect })` when the student is done. The
+   shell stores those counts on the server straight away.
 3. A line for it in `src/components/modes/index.ts`.
 
 ## Where things are

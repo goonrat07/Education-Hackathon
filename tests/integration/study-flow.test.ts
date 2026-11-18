@@ -247,7 +247,7 @@ describe("checks", () => {
     expect(await topicLevel(moleTopic)).toEqual({ level: 0, levelSince: null });
   });
 
-  it("lets a student dispute an answer afterwards, which can turn a near miss into a pass", async () => {
+  it("lets a student dispute an answer afterwards, which takes the question out of the score", async () => {
     await addCheckSet(moleTopic, "A");
     const session = await beginSession(ctx(DAY1), testId, moleTopic);
     const check = await openSessionCheck(ctx(DAY1), session.id, "session");
