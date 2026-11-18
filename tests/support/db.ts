@@ -168,4 +168,5 @@ export const OWNED_TABLES = [
   schema.aiUsage,
   schema.aiCalls,
   schema.plans,
+  schema.workLocks,
 ] as const;

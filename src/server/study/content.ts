@@ -22,6 +22,7 @@ import {
   listStudyItems,
   type Item,
 } from "@/server/data/items";
+import { onlyOnce } from "@/server/data/locks";
 import { listTopicPassages } from "@/server/data/passages";
 import type { Topic } from "@/server/data/topics";
 import { InvalidRequestError } from "@/server/errors";
@@ -54,30 +55,34 @@ const MAX_PRACTICE_PER_TOPIC = 24;
 export async function ensureStudyItems(ctx: AiContext, topic: Topic, mode: ModeId): Promise<Item[]> {
   const kinds = KINDS_FOR_MODE[mode];
   const minimum = mode === "flashcards" ? MIN_FLASHCARDS : MIN_PRACTICE_PROBLEMS;
-  const existing = await listStudyItems(ctx.userId, topic.id, kinds);
-  const stillToLearn =
-    mode === "flashcards" ? existing.length : existing.filter((i) => i.lastResult !== "correct").length;
-  if (stillToLearn >= minimum) return existing;
-  if (existing.length >= minimum && (mode === "flashcards" || existing.length >= MAX_PRACTICE_PER_TOPIC)) {
-    return existing;
-  }
 
-  const labeled = await topicPassages(ctx, topic);
-  const avoid = await listPromptTexts(ctx.userId, topic.id);
-  const candidates =
-    mode === "flashcards"
-      ? await generateFlashcards(ctx, topic, labeled, avoid, FLASHCARDS_PER_TOPIC)
-      : await generatePractice(ctx, topic, labeled, avoid, PRACTICE_MIX);
-  const verified = await keepVerified(ctx, labeled, candidates);
-  await insertStudyItems(ctx.userId, topic.testId, topic.id, verified);
+  const enoughAlready = async (): Promise<Item[] | null> => {
+    const existing = await listStudyItems(ctx.userId, topic.id, kinds);
+    const stillToLearn =
+      mode === "flashcards" ? existing.length : existing.filter((i) => i.lastResult !== "correct").length;
+    if (stillToLearn >= minimum) return existing;
+    const full = mode === "flashcards" || existing.length >= MAX_PRACTICE_PER_TOPIC;
+    return existing.length >= minimum && full ? existing : null;
+  };
 
-  const items = await listStudyItems(ctx.userId, topic.id, kinds);
-  if (items.length < minimum) {
-    throw new AiOutputError(
-      `Only ${items.length} verified ${mode === "flashcards" ? "cards" : "problems"} could be written for "${topic.name}". Its passages may be too thin to study from.`,
-    );
-  }
-  return items;
+  return onlyOnce(ctx.userId, `study:${topic.id}:${mode}`, enoughAlready, async () => {
+    const labeled = await topicPassages(ctx, topic);
+    const avoid = await listPromptTexts(ctx.userId, topic.id);
+    const candidates =
+      mode === "flashcards"
+        ? await generateFlashcards(ctx, topic, labeled, avoid, FLASHCARDS_PER_TOPIC)
+        : await generatePractice(ctx, topic, labeled, avoid, PRACTICE_MIX);
+    const verified = await keepVerified(ctx, labeled, candidates);
+    await insertStudyItems(ctx.userId, topic.testId, topic.id, verified);
+
+    const items = await listStudyItems(ctx.userId, topic.id, kinds);
+    if (items.length < minimum) {
+      throw new AiOutputError(
+        `Only ${items.length} verified ${mode === "flashcards" ? "cards" : "problems"} could be written for "${topic.name}". Its passages may be too thin to study from.`,
+      );
+    }
+    return items;
+  });
 }
 
 /**
@@ -85,23 +90,26 @@ export async function ensureStudyItems(ctx: AiContext, topic: Topic, mode: ModeI
  * student has not seen. Returns the set's id.
  */
 export async function ensureCheckSet(ctx: AiContext, topic: Topic): Promise<string> {
-  const ready = await findReadyCheckSet(ctx.userId, topic.id);
-  if (ready) {
+  const readySet = async (): Promise<string | null> => {
+    const ready = await findReadyCheckSet(ctx.userId, topic.id);
+    if (!ready) return null;
     const items = await listCheckSetItems(ctx.userId, ready);
-    if (items.filter((i) => i.status === "active").length >= CHECK_MIN_QUESTIONS) return ready;
-  }
+    return items.filter((i) => i.status === "active").length >= CHECK_MIN_QUESTIONS ? ready : null;
+  };
 
-  const labeled = await topicPassages(ctx, topic);
-  const avoid = await listPromptTexts(ctx.userId, topic.id);
-  let verified: Candidate[] = [];
-  // One retry: a second batch must also avoid the questions the first one produced.
-  for (let attempt = 0; attempt < 2 && verified.length < CHECK_MIN_QUESTIONS; attempt++) {
-    const seen = [...avoid, ...verified.map((c) => (c.content as { question: string }).question)];
-    const candidates = await generateCheckQuestions(ctx, topic, labeled, seen, CHECK_QUESTIONS_REQUESTED);
-    verified = [...verified, ...(await keepVerified(ctx, labeled, candidates))];
-  }
-  if (verified.length < CHECK_MIN_QUESTIONS) {
-    throw new AiOutputError(`Could not write a verified check for "${topic.name}".`);
-  }
-  return createCheckSet(ctx.userId, topic.testId, topic.id, verified.slice(0, CHECK_TARGET_QUESTIONS));
+  return onlyOnce(ctx.userId, `check:${topic.id}`, readySet, async () => {
+    const labeled = await topicPassages(ctx, topic);
+    const avoid = await listPromptTexts(ctx.userId, topic.id);
+    let verified: Candidate[] = [];
+    // One retry: a second batch must also avoid the questions the first one produced.
+    for (let attempt = 0; attempt < 2 && verified.length < CHECK_MIN_QUESTIONS; attempt++) {
+      const seen = [...avoid, ...verified.map((c) => (c.content as { question: string }).question)];
+      const candidates = await generateCheckQuestions(ctx, topic, labeled, seen, CHECK_QUESTIONS_REQUESTED);
+      verified = [...verified, ...(await keepVerified(ctx, labeled, candidates))];
+    }
+    if (verified.length < CHECK_MIN_QUESTIONS) {
+      throw new AiOutputError(`Could not write a verified check for "${topic.name}".`);
+    }
+    return createCheckSet(ctx.userId, topic.testId, topic.id, verified.slice(0, CHECK_TARGET_QUESTIONS));
+  });
 }

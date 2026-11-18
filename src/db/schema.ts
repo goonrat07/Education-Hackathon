@@ -390,6 +390,17 @@ export const aiCalls = pgTable(
   (t) => [index("ai_calls_user_idx").on(t.userId, t.createdAt)],
 );
 
+/** Short-lived markers so two requests never write the same study material at once. */
+export const workLocks = pgTable(
+  "work_locks",
+  {
+    userId: ownerId(),
+    key: text("key").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.key] })],
+);
+
 export const plans = pgTable("plans", {
   testId: uuid("test_id")
     .primaryKey()
