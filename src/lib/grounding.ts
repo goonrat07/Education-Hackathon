@@ -14,14 +14,20 @@ function skeleton(text: string): string {
 /** A supporting quote must be at least this long once formatting is stripped. */
 const MIN_QUOTE_LENGTH = 8;
 
+/** A quote that is one whole line of the passage, such as a table row, may be this short. */
+const MIN_WHOLE_LINE_LENGTH = 4;
+
 /**
  * True when `quote` appears in `passage` word for word, ignoring case,
- * spacing, line breaks and punctuation. Too-short quotes prove nothing and fail.
+ * spacing, line breaks and punctuation. Too-short quotes prove nothing and
+ * fail, unless the quote is exactly one whole line of the passage: a table
+ * row like "Na | 22.99" is short but is still a real, complete excerpt.
  */
 export function quoteInPassage(quote: string, passage: string): boolean {
   const needle = skeleton(quote);
-  if (needle.length < MIN_QUOTE_LENGTH) return false;
-  return skeleton(passage).includes(needle);
+  if (needle.length >= MIN_QUOTE_LENGTH) return skeleton(passage).includes(needle);
+  if (needle.length < MIN_WHOLE_LINE_LENGTH) return false;
+  return passage.split(/\r?\n/).some((line) => skeleton(line) === needle);
 }
 
 /** True when two prompts are the same question apart from formatting. */

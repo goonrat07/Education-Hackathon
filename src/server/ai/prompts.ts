@@ -45,7 +45,7 @@ export function avoidBlock(prompts: string[]): string {
   return `\n\nThe student has already seen these. Write different ones: do not repeat any of them, and do not ask the same thing in other words.\n<already_seen>\n${lines.join("\n")}\n</already_seen>`;
 }
 
-const GROUNDING_RULE = `For each one, cite the single passage it is based on by its id, and copy a short quote from that passage, word for word (5 to 25 words), that contains or directly supports the answer. The quote is checked against the passage by a program, so it has to be an exact, continuous excerpt of that one passage.`;
+const GROUNDING_RULE = `For each one, cite the single passage it is based on by its id, and copy a short quote from that passage, word for word (5 to 25 words), that contains or directly supports the answer. From a table, quote one or more whole rows. The quote is checked against the passage by a program, so it has to be an exact, continuous excerpt of that one passage.`;
 
 export const EXTRACT_INSTRUCTIONS = (file: { name: string; source: "teacher" | "notes" }, pageNote: string) =>
   `This is "${file.name}", ${file.source === "teacher" ? "material the teacher handed out" : "the student's own notes"} for an upcoming test. ${pageNote}

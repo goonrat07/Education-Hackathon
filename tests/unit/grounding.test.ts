@@ -35,6 +35,29 @@ describe("quoteInPassage", () => {
     expect(quoteInPassage("mole", PASSAGE)).toBe(false);
     expect(quoteInPassage("", PASSAGE)).toBe(false);
   });
+
+  const TABLE = "Element | Molar mass (g/mol)\nH | 1.008\nC | 12.01\nN | 14.01\nO | 16.00\nNa | 22.99\nCl | 35.45";
+
+  it("accepts one whole row of a table even though a row is short", () => {
+    expect(quoteInPassage("Na | 22.99", TABLE)).toBe(true);
+    expect(quoteInPassage("H | 1.008", TABLE)).toBe(true);
+    expect(quoteInPassage("na  22.99", TABLE)).toBe(true);
+  });
+
+  it("rejects part of a short row", () => {
+    expect(quoteInPassage("22.99", TABLE)).toBe(false);
+    expect(quoteInPassage("Na | 22", TABLE)).toBe(false);
+  });
+
+  it("rejects a short row that is not in the table", () => {
+    expect(quoteInPassage("Na | 22.98", TABLE)).toBe(false);
+    expect(quoteInPassage("K | 39.10", TABLE)).toBe(false);
+  });
+
+  it("rejects a whole line that is only a word or a number", () => {
+    expect(quoteInPassage("or", "Use the first value\nor\nthe second value")).toBe(false);
+    expect(quoteInPassage("2.", "1.\n2.\n3.")).toBe(false);
+  });
 });
 
 describe("answersAgree", () => {

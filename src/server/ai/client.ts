@@ -70,6 +70,15 @@ export function aiConfigured(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
+/** Everything Claude read for a call: fresh input plus what was written to or read from the prompt cache. */
+export function totalInputTokens(usage: {
+  input_tokens: number;
+  cache_creation_input_tokens?: number | null;
+  cache_read_input_tokens?: number | null;
+}): number {
+  return usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
+}
+
 function describe(error: unknown): string {
   return error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 500) : String(error).slice(0, 500);
 }
@@ -90,11 +99,11 @@ export async function runClaude<T>(
 
   const model = AI_MODELS[task];
   const started = Date.now();
-  const log = (ok: boolean, usage?: { input_tokens: number; output_tokens: number }, error?: string) =>
+  const log = (ok: boolean, usage?: Anthropic.Beta.BetaUsage, error?: string) =>
     logAiCall(ctx.userId, {
       task,
       model,
-      inputTokens: usage?.input_tokens ?? 0,
+      inputTokens: usage ? totalInputTokens(usage) : 0,
       outputTokens: usage?.output_tokens ?? 0,
       durationMs: Date.now() - started,
       ok,
