@@ -151,6 +151,28 @@ The Google button appears on the sign-in screen once both are set. School
 Google accounts may block apps their administrator has not approved; email
 sign-in always works.
 
+### An error in the server log that students do not see
+
+Vercel's log sometimes shows a line like this:
+
+```
+[Better Auth]: INTERNAL_SERVER_ERROR Error: Failed query: select … from "session" …
+  [cause]: Error: Connection terminated due to connection timeout
+```
+
+(the cause can also read `Query read timeout`). It appears at the moment the
+server wakes up after sitting idle for half a minute or more. Vercel pauses an
+idle server, and the line comes from a sign-in lookup that belonged to a page
+which had already been sent before the pause. The page the student is waiting
+for when the server wakes is not affected: in a check of 15 page loads with
+30-second pauses between them, the log recorded 7 of these lines and every
+page showed its content with no error.
+
+What keeps it harmless is in `src/db/pool.ts`: a database connection that has
+sat unused is checked before it is used again, a query with no answer gives up
+after 20 seconds, and a request waits at most 10 seconds for a connection.
+What starts the leftover lookup has not been tracked down.
+
 ## Adding a study mode
 
 Every mode goes through the same session shell, which handles timing, the
