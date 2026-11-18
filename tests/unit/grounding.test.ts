@@ -116,6 +116,81 @@ describe("answersAgree", () => {
     expect(answersAgree("", "4")).toBe("no");
     expect(answersAgree("  ", "")).toBe("no");
   });
+
+  it("rejects a different whole number however close it is", () => {
+    expect(answersAgree("1914", "1918")).toBe("no");
+    expect(answersAgree("1945", "1939")).toBe("no");
+    expect(answersAgree("1066", "1071")).toBe("no");
+    expect(answersAgree("206 bones", "207 bones")).toBe("no");
+    expect(answersAgree("365 days", "366 days")).toBe("no");
+    expect(answersAgree("1,000,001", "1,000,002")).toBe("no");
+  });
+
+  it("never accepts a round number just because the other one is near it", () => {
+    expect(answersAgree("1,000 m", "1,005 m")).toBe("unsure");
+    expect(answersAgree("1940", "1941")).toBe("unsure");
+    expect(answersAgree("24,300 J", "24,309 J")).toBe("unsure");
+  });
+
+  it("rejects a round number that is nowhere near", () => {
+    expect(answersAgree("1900", "1941")).toBe("no");
+    expect(answersAgree("2000 g", "2600 g")).toBe("no");
+  });
+
+  it("leaves decimals that differ in their last digit to a judge", () => {
+    expect(answersAgree("63.1 g", "63.2 g")).toBe("unsure");
+    expect(answersAgree("0.504 mol", "0.505 mol")).toBe("unsure");
+  });
+
+  it("rejects decimals that are clearly different", () => {
+    expect(answersAgree("0.50 mol", "0.52 mol")).toBe("no");
+    expect(answersAgree("63.1 g", "64.9 g")).toBe("no");
+  });
+
+  it("accepts a value written to fewer digits than the other", () => {
+    expect(answersAgree("63 g", "63.2 g")).toBe("yes");
+    expect(answersAgree("0.33", "1/3")).toBe("yes");
+    expect(answersAgree("$2.41 \\times 10^{24}$ molecules", "$2.409 \\times 10^{24}$ molecules")).toBe("yes");
+    expect(answersAgree("75%", "$75.0\\%$")).toBe("yes");
+  });
+
+  it("rejects a whole number the other value does not round to", () => {
+    expect(answersAgree("63 g", "63.6 g")).toBe("no");
+  });
+
+  it("does not treat unit symbols that differ only in capital letters as the same", () => {
+    expect(answersAgree("0.5 M", "0.5 m")).toBe("unsure");
+    expect(answersAgree("2 mg", "2 Mg")).toBe("unsure");
+  });
+
+  it("accepts the same unit symbol and unit names in any capitalization", () => {
+    expect(answersAgree("0.5 M", "0.50 M")).toBe("yes");
+    expect(answersAgree("2 Moles", "2 mol")).toBe("yes");
+    expect(answersAgree("18 GRAMS", "18 g")).toBe("yes");
+    expect(answersAgree("250 mL", "250 milliliters")).toBe("yes");
+  });
+
+  it("accepts a unit symbol typed in the wrong case when it can mean only one thing", () => {
+    expect(answersAgree("2 MOL", "2 mol")).toBe("yes");
+    expect(answersAgree("300 j", "300 J")).toBe("yes");
+    expect(answersAgree("5 ml", "5 mL")).toBe("yes");
+  });
+
+  it("ignores a full stop typed after the answer", () => {
+    expect(answersAgree("12.", "12")).toBe("yes");
+    expect(answersAgree("0.5 mol.", "0.5 mol")).toBe("yes");
+  });
+
+  it("does not accept the right number for a different variable", () => {
+    expect(answersAgree("x = 4", "y = 4")).toBe("unsure");
+    expect(answersAgree("x = 4", "X = 4")).toBe("yes");
+  });
+
+  it("does not read a comma between two digits as a thousands separator", () => {
+    expect(answersAgree("1,5", "15")).toBe("unsure");
+    expect(answersAgree("1,5", "1.5")).toBe("unsure");
+    expect(answersAgree("12,50", "1250")).toBe("unsure");
+  });
 });
 
 describe("samePrompt", () => {

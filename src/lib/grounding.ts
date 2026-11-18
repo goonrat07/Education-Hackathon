@@ -37,7 +37,7 @@ export function samePrompt(a: string, b: string): boolean {
 
 // ───────────────────────── answer comparison ─────────────────────────
 
-/** Removes LaTeX wrappers so `$6.022 \times 10^{23}$` reads as `6.022 × 10^23`. */
+/** Removes LaTeX wrappers so `$6.022 \times 10^{23}$` reads as `6.022 × 10^23`. Capital letters are kept. */
 function plain(text: string): string {
   return text
     .normalize("NFKC")
@@ -49,10 +49,14 @@ function plain(text: string): string {
     .replace(/[$\\{}]/g, "")
     .replace(/−/g, "-")
     .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
+    .trim();
 }
 
+/**
+ * Unit names and their symbols, looked up without regard to capitals. Only
+ * spellings that can mean one thing are listed: "m" and "M", or "mg" and
+ * "Mg", are different units and are never folded together.
+ */
 const UNIT_ALIASES: Record<string, string> = {
   gram: "g",
   grams: "g",
@@ -60,17 +64,25 @@ const UNIT_ALIASES: Record<string, string> = {
   kilograms: "kg",
   milligram: "mg",
   milligrams: "mg",
+  mol: "mol",
   mole: "mol",
   moles: "mol",
   mols: "mol",
-  liter: "l",
-  liters: "l",
-  litre: "l",
-  litres: "l",
-  milliliter: "ml",
-  milliliters: "ml",
-  millilitre: "ml",
-  millilitres: "ml",
+  j: "J",
+  kj: "kJ",
+  kg: "kg",
+  cm: "cm",
+  km: "km",
+  l: "L",
+  liter: "L",
+  liters: "L",
+  litre: "L",
+  litres: "L",
+  ml: "mL",
+  milliliter: "mL",
+  milliliters: "mL",
+  millilitre: "mL",
+  millilitres: "mL",
   percent: "%",
   "per cent": "%",
   second: "s",
@@ -92,15 +104,18 @@ const UNIT_ALIASES: Record<string, string> = {
   centimeters: "cm",
   kilometer: "km",
   kilometers: "km",
-  joule: "j",
-  joules: "j",
-  newton: "n",
-  newtons: "n",
+  joule: "J",
+  joules: "J",
+  newton: "N",
+  newtons: "N",
   degree: "°",
   degrees: "°",
   atom: "atoms",
+  atoms: "atoms",
   molecule: "molecules",
+  molecules: "molecules",
   particle: "particles",
+  particles: "particles",
 };
 
 function normalizeUnit(unit: string): string {
@@ -108,64 +123,106 @@ function normalizeUnit(unit: string): string {
     .replace(/[.]+$/g, "")
     .replace(/\s*\/\s*/g, "/")
     .trim();
-  if (cleaned in UNIT_ALIASES) return UNIT_ALIASES[cleaned];
-  return cleaned
-    .split("/")
-    .map((part) => UNIT_ALIASES[part.trim()] ?? part.trim())
-    .join("/")
-    .replace(/\s+/g, " ");
+  const named = (part: string) => UNIT_ALIASES[part.trim().toLowerCase()] ?? part.trim();
+  if (cleaned.toLowerCase() in UNIT_ALIASES) return UNIT_ALIASES[cleaned.toLowerCase()];
+  return cleaned.split("/").map(named).join("/").replace(/\s+/g, " ");
 }
 
 interface Quantity {
   value: number;
   /** Size of the last written digit (0 for an exact fraction). */
   precision: number;
+  /**
+   * Size of the last digit that is not a trailing zero of a whole number:
+   * 24,300 may be 24,309 rounded to the hundreds, so its rounding is 100.
+   */
+  rounding: number;
+  /** Written with a decimal point. */
+  decimal: boolean;
   unit: string;
+  /** The letter before "=", when the answer was written like "x = 4". */
+  variable: string | null;
 }
 
-const NUMBER = String.raw`([+-]?(?:\d[\d,]*(?:\.\d+)?|\.\d+))`;
+// Commas count only as thousands separators ("1,250"); "1,5" is not a number.
+const NUMBER = String.raw`([+-]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+))`;
 const POWER = String.raw`(?:\s*(?:x|×|·|\*|times)\s*10\s*\^?\s*([+-]?\d+)|e([+-]?\d+))?`;
-const QUANTITY = new RegExp(String.raw`^(?:[a-z]\s*=\s*)?${NUMBER}${POWER}\s*(.*)$`);
-const FRACTION = /^(?:[a-z]\s*=\s*)?([+-]?\d+)\s*\/\s*(\d+)\s*(.*)$/;
+const VARIABLE = String.raw`(?:([a-z])\s*=\s*)?`;
+const QUANTITY = new RegExp(String.raw`^${VARIABLE}${NUMBER}${POWER}\s*(.*)$`, "i");
+const FRACTION = /^(?:([a-z])\s*=\s*)?([+-]?\d+)\s*\/\s*(\d+)\s*(.*)$/i;
 /** What may follow a number and still count as a unit rather than a sentence. */
-const UNIT_SHAPE = /^[a-zµ°%/^\-·\d ]{0,16}$/;
+const UNIT_SHAPE = /^[a-zµ°%/^\-·\d ]{0,16}$/i;
+
+function unitOf(rest: string): string | null {
+  // A full stop typed after the answer is the end of a sentence, not part of the unit.
+  const unit = rest.replace(/[.\s]+$/, "").trim();
+  if (!UNIT_SHAPE.test(unit) || unit.split(" ").length > 2) return null;
+  return normalizeUnit(unit);
+}
 
 /** Reads "3.0 × 10^8 m/s" as a number with a unit; null when the text is anything else. */
 function parseQuantity(text: string): Quantity | null {
   const fraction = FRACTION.exec(text);
-  if (fraction && Number(fraction[2]) !== 0) {
-    const unit = fraction[3].trim();
-    if (!UNIT_SHAPE.test(unit) || unit.split(" ").length > 2) return null;
-    return { value: Number(fraction[1]) / Number(fraction[2]), precision: 0, unit: normalizeUnit(unit) };
+  if (fraction && Number(fraction[3]) !== 0) {
+    const unit = unitOf(fraction[4]);
+    if (unit === null) return null;
+    return {
+      value: Number(fraction[2]) / Number(fraction[3]),
+      precision: 0,
+      rounding: 0,
+      decimal: false,
+      unit,
+      variable: fraction[1]?.toLowerCase() ?? null,
+    };
   }
   const match = QUANTITY.exec(text);
   if (!match) return null;
-  const mantissa = match[1].replace(/,/g, "");
-  const exponent = Number(match[2] ?? match[3] ?? 0);
-  const unit = match[4].trim();
-  if (!UNIT_SHAPE.test(unit) || unit.split(" ").length > 2) return null;
+  const mantissa = match[2].replace(/,/g, "");
+  const exponent = Number(match[3] ?? match[4] ?? 0);
+  const unit = unitOf(match[5]);
+  if (unit === null) return null;
   const value = Number(mantissa) * 10 ** exponent;
   if (!Number.isFinite(value)) return null;
-  const decimals = mantissa.includes(".") ? mantissa.length - mantissa.indexOf(".") - 1 : 0;
-  return { value, precision: 10 ** (exponent - decimals), unit: normalizeUnit(unit) };
+  const decimal = mantissa.includes(".");
+  const decimals = decimal ? mantissa.length - mantissa.indexOf(".") - 1 : 0;
+  const trailingZeros = decimal || value === 0 ? 0 : mantissa.length - mantissa.replace(/0+$/, "").length;
+  return {
+    value,
+    precision: 10 ** (exponent - decimals),
+    rounding: 10 ** (exponent - decimals + trailingZeros),
+    decimal,
+    unit,
+    variable: match[1]?.toLowerCase() ?? null,
+  };
 }
+
+/** Two numbers within this share of each other may be one value rounded two ways. */
+const ROUNDING_DOUBT = 0.005;
 
 function compareQuantities(a: Quantity, b: Quantity): "yes" | "no" | "unsure" {
   if (a.unit !== b.unit) return "unsure";
+  if (a.variable && b.variable && a.variable !== b.variable) return "unsure";
   const diff = Math.abs(a.value - b.value);
   const scale = Math.max(Math.abs(a.value), Math.abs(b.value));
   if (scale === 0) return "yes";
   const relative = diff / scale;
-  if (relative <= 0.005) return "yes";
-  // The same value written to fewer digits (18.0 for 18.02, 0.33 for 1/3).
-  const coarser = Math.max(a.precision, b.precision);
-  const roundsTogether = diff <= coarser / 2 + Number.EPSILON * scale;
-  if (roundsTogether) return relative <= 0.02 ? "yes" : "unsure";
+  const slack = Number.EPSILON * scale * 4;
+
+  // The same value at the precision it was written to (18.0 for 18.02, 0.33
+  // for 1/3). Whole numbers have a precision of 1, so they must be equal.
+  if (diff <= Math.max(a.precision, b.precision) / 2 + slack) return relative <= 0.02 ? "yes" : "unsure";
+
+  // Not the same as written, but possibly one value rounded two ways: a round
+  // number next to an exact one (24,300 and 24,309), or decimals a hair apart
+  // (63.1 and 63.2). That is for a judge to decide, never a "yes" from here.
+  if (diff <= Math.max(a.rounding, b.rounding) / 2 + slack && relative <= 0.02) return "unsure";
+  if ((a.decimal || b.decimal) && relative <= ROUNDING_DOUBT) return "unsure";
   return "no";
 }
 
 function words(text: string): string {
   return text
+    .toLowerCase()
     .replace(/[^\p{L}\p{N}%°/^+\-. ]+/gu, " ")
     .replace(/(^|\s)(?:the|a|an)\s+/g, "$1")
     .replace(/[.\s]+$/g, "")
@@ -175,7 +232,7 @@ function words(text: string): string {
 
 /**
  * Whether two independently written answers agree.
- *  - `yes`: the same number (allowing rounding and unit spellings) or the same words.
+ *  - `yes`: the same number (allowing fewer written digits and unit spellings) or the same words.
  *  - `no`: two clean numbers in the same unit that differ, or an empty answer.
  *  - `unsure`: anything this cannot settle by reading; a judge decides.
  */
