@@ -149,8 +149,16 @@ describe("biggestGaps", () => {
   });
 
   it("lists the largest gaps first, whichever direction they go", () => {
-    const rows = [row("a", 5, 3, 4), row("b", 1, 4, 4), row("c", 5, 1, 4)];
+    const rows = [row("a", 5, 2, 4), row("b", 1, 4, 4), row("c", 5, 1, 4)];
     expect(biggestGaps(rows).map((r) => r.id)).toEqual(["b", "c", "a"]);
+  });
+
+  it("does not call out a student who rated 4 of 5 and then got everything right", () => {
+    expect(biggestGaps([row("a", 4, 4, 4)])).toEqual([]);
+  });
+
+  it("does not call out a student who rated 5 of 5 and missed one of four", () => {
+    expect(biggestGaps([row("a", 5, 3, 4)])).toEqual([]);
   });
 
   it("leaves out gaps too small to matter", () => {

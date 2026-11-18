@@ -11,6 +11,7 @@ import {
   real,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -326,7 +327,11 @@ export const checks = pgTable(
     createdAt: createdAt(),
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
   },
-  (t) => [index("checks_topic_idx").on(t.topicId), index("checks_session_idx").on(t.sessionId)],
+  (t) => [
+    index("checks_topic_idx").on(t.topicId),
+    // A session has at most one delayed check and one end-of-session check.
+    uniqueIndex("checks_session_kind_idx").on(t.sessionId, t.kind),
+  ],
 );
 
 export const checkAnswers = pgTable(

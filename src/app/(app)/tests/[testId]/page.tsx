@@ -232,50 +232,33 @@ async function TestContent({ params }: { params: Promise<{ testId: string }> }) 
           </ul>
         )}
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[34rem] border-collapse text-left">
-            <thead>
-              <tr className="text-sm text-pencil ruled-bottom">
-                <th scope="col" className="py-2 pr-4 font-semibold">
-                  Topic
-                </th>
-                <th scope="col" className="py-2 pr-4 font-semibold">
-                  Level
-                </th>
-                <th scope="col" className="py-2 pr-4 font-semibold">
-                  Your confidence
-                </th>
-                <th scope="col" className="py-2 pr-4 font-semibold">
-                  Latest check
-                </th>
-                <th scope="col" className="py-2 font-semibold">
-                  <span className="sr-only">Study</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {progress.rows.map((row) => (
-                <tr key={row.topicId} className="ruled-bottom align-baseline">
-                  <th scope="row" className="py-3 pr-4 font-semibold">
-                    <LevelMark level={row.level}>{row.name}</LevelMark>
-                  </th>
-                  <td className="py-3 pr-4 text-sm">{["Not started", "Learning", "Got it", "Locked in"][row.level]}</td>
-                  <td className="py-3 pr-4 tabular-nums">{row.confidence ? `${row.confidence} of 5` : "Not rated"}</td>
-                  <td className="py-3 pr-4 tabular-nums">
-                    {row.latestCheck ? `${row.latestCheck.correct} of ${row.latestCheck.scored}` : "None yet"}
-                  </td>
-                  <td className="py-3 text-right">
-                    {plan.status !== "past" && (
-                      <StartSessionButton testId={test.id} topicId={row.topicId} className="link text-sm">
-                        Study now
-                      </StartSessionButton>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className="mt-4 ruled-top">
+          {progress.rows.map((row) => (
+            <li
+              key={row.topicId}
+              className="grid grid-cols-2 items-baseline gap-x-4 gap-y-1 py-3 ruled-bottom sm:grid-cols-[minmax(0,1fr)_7.5rem_7.5rem_5.5rem]"
+            >
+              <p className="col-span-2 font-semibold sm:col-span-1">
+                <LevelMark level={row.level}>{row.name}</LevelMark>
+              </p>
+              <p className="text-sm tabular-nums">
+                <span className="text-pencil">Confidence </span>
+                {row.confidence ? `${row.confidence} of 5` : "not rated"}
+              </p>
+              <p className="text-sm tabular-nums">
+                <span className="text-pencil">Last check </span>
+                {row.latestCheck ? `${row.latestCheck.correct} of ${row.latestCheck.scored}` : "none yet"}
+              </p>
+              <p className="col-span-2 sm:col-span-1 sm:text-right">
+                {plan.status !== "past" && (
+                  <StartSessionButton testId={test.id} topicId={row.topicId} className="link text-sm">
+                    Study now
+                  </StartSessionButton>
+                )}
+              </p>
+            </li>
+          ))}
+        </ul>
         <p className="mt-4 text-sm">
           <Link href={`/tests/${test.id}/setup`} className="link">
             Edit topics and materials

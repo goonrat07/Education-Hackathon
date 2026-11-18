@@ -155,17 +155,18 @@ function TopicRow({
           </div>
 
           {groups.length > 0 ? (
-            <p className="mt-2 text-sm">
-              <span className="text-pencil">From </span>
-              {groups.map((group, i) => (
-                <span key={group.key}>
-                  {i > 0 && <span className="text-pencil">, </span>}
+            <ul className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm" aria-label="Where this topic comes from">
+              <li className="text-pencil" aria-hidden="true">
+                From
+              </li>
+              {groups.map((group) => (
+                <li key={group.key}>
                   <SourceLink passageId={group.passageIds[0]} highlight={group.passageIds}>
                     {group.label}
                   </SourceLink>
-                </span>
+                </li>
               ))}
-            </p>
+            </ul>
           ) : (
             <p className="mt-2 text-sm text-redpen">No passages from your files are linked to this topic.</p>
           )}

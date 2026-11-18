@@ -21,6 +21,7 @@ import {
   type Check,
 } from "@/server/data/checks";
 import { claimCheckSet, flagItem, listCheckSetItems, type Item } from "@/server/data/items";
+import { onlyOnce } from "@/server/data/locks";
 import { listTopicPassages } from "@/server/data/passages";
 import { getSession } from "@/server/data/sessions";
 import { getTopic, setTopicLevel } from "@/server/data/topics";
@@ -121,23 +122,28 @@ export async function openSessionCheck(
   const topic = await getTopic(user.userId, topicId);
   if (!topic) throw new NotFoundError("Topic not found");
 
-  let check = await findSessionCheck(user.userId, sessionId, kind);
-  if (!check) {
-    if (session.status !== "active") throw new InvalidRequestError("This session is already finished.");
-    // Claim a ready set; if another request took it first, get the next one.
-    let setId = await ensureCheckSet(user, topic);
-    for (let attempt = 0; attempt < 3 && !(await claimCheckSet(user.userId, setId)); attempt++) {
-      setId = await ensureCheckSet(user, topic);
-    }
-    check = await openCheck(user.userId, {
-      testId: session.testId,
-      topicId,
-      sessionId,
-      checkSetId: setId,
-      kind,
-      localDate: user.today,
-    });
-  }
+  // Two requests for the same check (a double tap, a retry) must end up with one check and one set.
+  const check = await onlyOnce(
+    user.userId,
+    `open-check:${sessionId}:${kind}`,
+    () => findSessionCheck(user.userId, sessionId, kind),
+    async () => {
+      if (session.status !== "active") throw new InvalidRequestError("This session is already finished.");
+      // Claim a ready set; if another check took it first, get the next one.
+      let setId = await ensureCheckSet(user, topic);
+      for (let attempt = 0; attempt < 3 && !(await claimCheckSet(user.userId, setId)); attempt++) {
+        setId = await ensureCheckSet(user, topic);
+      }
+      return openCheck(user.userId, {
+        testId: session.testId,
+        topicId,
+        sessionId,
+        checkSetId: setId,
+        kind,
+        localDate: user.today,
+      });
+    },
+  );
 
   const items = await listCheckSetItems(user.userId, check.checkSetId);
   return {

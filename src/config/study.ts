@@ -29,8 +29,8 @@ export const LEVEL_WEIGHTS: readonly number[] = [0, 1 / 3, 2 / 3, 1];
 /** Confidence used for planning when a topic has not been rated yet. */
 export const DEFAULT_CONFIDENCE = 3;
 
-/** A confidence-versus-check gap smaller than this is not called out. */
-export const GAP_CALLOUT_THRESHOLD = 0.25;
+/** A confidence-versus-check gap smaller than this is not called out (one step on either scale is 0.25). */
+export const GAP_CALLOUT_THRESHOLD = 0.3;
 export const GAP_CALLOUT_COUNT = 3;
 
 /** Limits on what a student can enter. */

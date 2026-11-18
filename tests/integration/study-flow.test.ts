@@ -130,6 +130,16 @@ describe("starting a session", () => {
     expect(again.id).toBe(first.id);
   });
 
+  it("starts one session when the button is pressed twice at once", async () => {
+    const [first, second] = await Promise.all([
+      beginSession(ctx(DAY1), testId, moleTopic),
+      beginSession(ctx(DAY1), testId, moleTopic),
+    ]);
+    expect(second.id).toBe(first.id);
+    const rows = await getDb().select().from(schema.studySessions).where(eq(schema.studySessions.topicId, moleTopic));
+    expect(rows).toHaveLength(1);
+  });
+
   it("refuses a topic from another student's test", async () => {
     const other = await createUser("other");
     const stranger: UserContext = { ...ctx(DAY1), userId: other };
@@ -156,6 +166,21 @@ describe("checks", () => {
     const second = await openSessionCheck(ctx(DAY1), session.id, "session");
     expect(second.checkId).toBe(first.checkId);
     expect(second.questions.map((q) => q.id)).toEqual(first.questions.map((q) => q.id));
+  });
+
+  it("opens one check, using one set, when two requests arrive at the same moment", async () => {
+    await addCheckSet(moleTopic, "A");
+    await addCheckSet(moleTopic, "B");
+    const session = await beginSession(ctx(DAY1), testId, moleTopic);
+    const [first, second] = await Promise.all([
+      openSessionCheck(ctx(DAY1), session.id, "session"),
+      openSessionCheck(ctx(DAY1), session.id, "session"),
+    ]);
+    expect(second.checkId).toBe(first.checkId);
+    const checks = await getDb().select().from(schema.checks).where(eq(schema.checks.sessionId, session.id));
+    expect(checks).toHaveLength(1);
+    const sets = await getDb().select().from(schema.checkSets).where(eq(schema.checkSets.topicId, moleTopic));
+    expect(sets.filter((s) => s.status === "ready")).toHaveLength(1);
   });
 
   it("moves a topic up one level when the check is passed", async () => {

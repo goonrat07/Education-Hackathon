@@ -1,5 +1,5 @@
 {
-  "id": "6818338e-3ccb-47d2-829c-aafa8fcd598a",
+  "id": "4a8cf7c3-3d7e-4e67-92c7-2cd93757f884",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -629,17 +629,23 @@
           "method": "btree",
           "with": {}
         },
-        "checks_session_idx": {
-          "name": "checks_session_idx",
+        "checks_session_kind_idx": {
+          "name": "checks_session_kind_idx",
           "columns": [
             {
               "expression": "session_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}

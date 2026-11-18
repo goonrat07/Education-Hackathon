@@ -294,7 +294,7 @@ CREATE INDEX "account_user_idx" ON "account" USING btree ("user_id");--> stateme
 CREATE INDEX "ai_calls_user_idx" ON "ai_calls" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "check_sets_topic_idx" ON "check_sets" USING btree ("topic_id");--> statement-breakpoint
 CREATE INDEX "checks_topic_idx" ON "checks" USING btree ("topic_id");--> statement-breakpoint
-CREATE INDEX "checks_session_idx" ON "checks" USING btree ("session_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "checks_session_kind_idx" ON "checks" USING btree ("session_id","kind");--> statement-breakpoint
 CREATE INDEX "files_test_idx" ON "files" USING btree ("test_id");--> statement-breakpoint
 CREATE INDEX "files_user_idx" ON "files" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "item_flags_item_idx" ON "item_flags" USING btree ("item_id");--> statement-breakpoint

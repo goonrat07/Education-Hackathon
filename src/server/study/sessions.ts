@@ -16,6 +16,7 @@ import { isModeId, MODES, modeForType, type ModeId } from "@/lib/modes";
 import { gradeAnswers } from "@/server/ai/grade";
 import { listSessionChecks } from "@/server/data/checks";
 import { getItem, recordItemResult, type Item } from "@/server/data/items";
+import { onlyOnce } from "@/server/data/locks";
 import { listTopicPassages } from "@/server/data/passages";
 import {
   findActiveSession,
@@ -44,22 +45,26 @@ export async function beginSession(user: UserContext, testId: string, topicId: s
   const topic = view?.state.topics.find((t) => t.id === topicId);
   if (!view || !topic) throw new NotFoundError("Topic not found");
 
-  const underWay = await findActiveSession(user.userId, topicId, user.today);
-  if (underWay) return underWay;
-
   const mode = modeForType(topic.type);
   const plannedToday = view.plan.days.find((d) => d.date === user.today)?.sessions.find((s) => s.topicId === topicId);
-  return startSession(user.userId, {
-    testId,
-    topicId,
-    mode,
-    startedAt: new Date(),
-    localDate: user.today,
-    plannedMinutes: plannedToday?.minutes ?? MODES[mode].minutes,
-    readinessBefore: view.state.readiness,
-    // A topic studied on an earlier day gets its delayed check at the start of this session.
-    delayedTopicId: pickDelayedCheckTopic(view.state.topics, user.today, topicId),
-  });
+  // A double tap on "Start" must not create two sessions.
+  return onlyOnce(
+    user.userId,
+    `session:${topicId}:${user.today}`,
+    () => findActiveSession(user.userId, topicId, user.today),
+    () =>
+      startSession(user.userId, {
+        testId,
+        topicId,
+        mode,
+        startedAt: new Date(),
+        localDate: user.today,
+        plannedMinutes: plannedToday?.minutes ?? MODES[mode].minutes,
+        readinessBefore: view.state.readiness,
+        // A topic studied on an earlier day gets its delayed check at the start of this session.
+        delayedTopicId: pickDelayedCheckTopic(view.state.topics, user.today, topicId),
+      }),
+  );
 }
 
 export interface StudyDeck {

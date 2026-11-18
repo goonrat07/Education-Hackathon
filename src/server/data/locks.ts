@@ -2,7 +2,8 @@ import "server-only";
 import { and, eq, lt, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 
-const LOCK_SECONDS = 120;
+// No request runs longer than this (see maxDuration on the routes), so an older lock is stale.
+const LOCK_SECONDS = 300;
 const POLL_MS = 1500;
 
 function sleep(ms: number): Promise<void> {

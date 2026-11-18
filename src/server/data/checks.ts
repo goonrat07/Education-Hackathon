@@ -20,8 +20,13 @@ export async function openCheck(
   const [row] = await getDb()
     .insert(schema.checks)
     .values({ userId, ...input })
+    .onConflictDoNothing({ target: [schema.checks.sessionId, schema.checks.kind] })
     .returning();
-  return row;
+  if (row) return row;
+  // The session already has this check (two requests raced): return that one.
+  const existing = await findSessionCheck(userId, input.sessionId, input.kind);
+  if (!existing) throw new Error("Could not open the check");
+  return existing;
 }
 
 export async function getCheck(userId: string, checkId: string): Promise<Check | null> {
