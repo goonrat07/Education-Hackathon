@@ -160,18 +160,39 @@ Vercel's log sometimes shows a line like this:
   [cause]: Error: Connection terminated due to connection timeout
 ```
 
-(the cause can also read `Query read timeout`). It appears at the moment the
-server wakes up after sitting idle for half a minute or more. Vercel pauses an
-idle server, and the line comes from a sign-in lookup that belonged to a page
-which had already been sent before the pause. The page the student is waiting
-for when the server wakes is not affected: in a check of 15 page loads with
-30-second pauses between them, the log recorded 7 of these lines and every
-page showed its content with no error.
+(the cause can also read `Query read timeout` or `write EPIPE`). It appears at
+the moment a server wakes up after sitting idle for half a minute or more.
+Vercel pauses an idle server, and the line comes from a sign-in lookup that
+was still unfinished when the server was paused. Every one of the 40 such
+lines collected so far was logged within about a tenth of a second of the
+arrival of the request it is filed under. That is too soon for that request's
+own lookup to have run out its 10 or 20 seconds, so the lookup that failed was
+an older one.
 
-What keeps it harmless is in `src/db/pool.ts`: a database connection that has
-sat unused is checked before it is used again, a query with no answer gives up
-after 20 seconds, and a request waits at most 10 seconds for a connection.
-What starts the leftover lookup has not been tracked down.
+The log files the line under the request that wakes the server. Sometimes that
+is a small request the browser makes on its own about a link on the page, and
+sometimes it is the student's own page. Either way the student is not
+affected. Two checks on the live site, each with a 30-second pause before
+every step, showed this:
+
+- 15 page visits, some by full load and some by clicking a link, across the
+  dashboard, Settings, the add-a-test page and a test's setup page. All 15
+  showed the student's data with no error, in under a second except the first
+  (2.4 seconds). The log recorded six of these lines meanwhile. Four were
+  filed under two of the visits themselves, and those two pages showed their
+  data like the rest.
+- 6 requests of the kind a study session sends (saving a change, asking for
+  data). All 6 were answered in about half a second, and no line was filed
+  under any of them.
+
+All 40 lines were filed under a page. None was filed under an `/api` request,
+which is what a study session sends.
+
+What keeps the waking request safe is in `src/db/pool.ts`: a database
+connection that has sat unused is checked before it is used again, a query
+with no answer gives up after 20 seconds, and a request waits at most 10
+seconds for a connection. What leaves a lookup unfinished has not been tracked
+down.
 
 ## Adding a study mode
 
