@@ -51,6 +51,7 @@ const CHECK_BLOCKERS = new Set([
   "ai_busy",
   "ai_refusal",
   "ai_output",
+  "ai_input",
   "no_material",
 ]);
 

@@ -26,7 +26,7 @@ import { listTopicPassages } from "@/server/data/passages";
 import { getSession, markCheckUnavailable } from "@/server/data/sessions";
 import { AiCeilingError, AiLimitError } from "@/server/data/usage";
 import { getTopic, setTopicLevel } from "@/server/data/topics";
-import { AiBusyError, AiOutputError, AiRefusalError, AiUnavailableError } from "@/server/ai/client";
+import { AiBusyError, AiInputError, AiOutputError, AiRefusalError, AiUnavailableError } from "@/server/ai/client";
 import { InvalidRequestError, NoMaterialError, NotFoundError } from "@/server/errors";
 import type { UserContext } from "@/server/session";
 import { ensureCheckSet } from "./content";
@@ -120,6 +120,7 @@ function blocksCheck(error: unknown): boolean {
     error instanceof AiBusyError ||
     error instanceof AiRefusalError ||
     error instanceof AiOutputError ||
+    error instanceof AiInputError ||
     error instanceof NoMaterialError
   );
 }

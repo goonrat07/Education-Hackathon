@@ -1,7 +1,7 @@
 import "server-only";
 import { ZodError } from "zod";
 import { AI_DAILY_CALL_LIMIT } from "@/config/ai";
-import { AiBusyError, AiOutputError, AiRefusalError, AiUnavailableError } from "@/server/ai/client";
+import { AiBusyError, AiInputError, AiOutputError, AiRefusalError, AiUnavailableError } from "@/server/ai/client";
 import { AiCeilingError, AiLimitError } from "@/server/data/usage";
 import {
   InvalidRequestError,
@@ -50,5 +50,6 @@ export function describeError(error: unknown): ErrorDescription {
   }
   if (error instanceof AiRefusalError) return as(422, "ai_refusal", "Claude declined to work with this material.");
   if (error instanceof AiOutputError) return as(502, "ai_output", error.message);
+  if (error instanceof AiInputError) return as(422, "ai_input", error.message);
   return as(500, "server_error", "Something went wrong on our side. Try again.");
 }

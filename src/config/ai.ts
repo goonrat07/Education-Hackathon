@@ -67,6 +67,22 @@ export const AI_MAX_TOKENS: Record<AiTask, number> = {
 };
 
 /**
+ * How long one request to Claude may take before it is given up on, in
+ * seconds, and how many times a failed request is tried again. Together they
+ * keep a slow or failing call inside the time a page request is allowed.
+ */
+export const AI_TIMEOUT_SECONDS: Record<AiTask, number> = {
+  extract: 120,
+  topics: 120,
+  generate: 100,
+  solve: 60,
+  judge: 30,
+  grade: 25,
+  explain: 25,
+};
+export const AI_MAX_RETRIES = 1;
+
+/**
  * If Claude Sonnet 5.5 declines a request for a policy reason that a
  * substitute model can handle, Anthropic retries it server-side on the
  * default substitute. Set `enabled` to false to turn this off.
