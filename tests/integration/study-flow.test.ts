@@ -7,7 +7,7 @@ import { createCheckSet } from "@/server/data/items";
 import { storePlan } from "@/server/data/plans";
 import type { UserContext } from "@/server/session";
 import { disputeCheckAnswer, openSessionCheck, submitCheck } from "@/server/study/checks";
-import { getPlanView } from "@/server/study/plans";
+import { getPlanView, startPlan } from "@/server/study/plans";
 import { beginSession, completeSession, finishStudy } from "@/server/study/sessions";
 import { loadTestState } from "@/server/study/state";
 import { createUser, resetDb } from "../support/db";
@@ -377,6 +377,64 @@ describe("finishing a session", () => {
     expect(learnTopics.map((s) => s.topicId)).toEqual([massTopic]);
     const state = await loadTestState(userId, testId, DAY1);
     expect(state!.readiness).toBeCloseTo(1 / 6, 5);
+  });
+});
+
+describe("building the plan", () => {
+  async function clearRatings(): Promise<void> {
+    await getDb().update(schema.topics).set({ confidence: null }).where(eq(schema.topics.testId, testId));
+    await getDb().update(schema.tests).set({ planReadyAt: null }).where(eq(schema.tests.id, testId));
+  }
+  async function planReady(): Promise<boolean> {
+    const [test] = await getDb().select().from(schema.tests).where(eq(schema.tests.id, testId));
+    return test.planReadyAt !== null;
+  }
+  async function confidenceOf(topicId: string): Promise<number | null> {
+    const [row] = await getDb().select().from(schema.topics).where(eq(schema.topics.id, topicId));
+    return row.confidence;
+  }
+
+  it("uses the ratings sent along, so a rating still being saved cannot hold the plan back", async () => {
+    await clearRatings();
+    await startPlan(ctx(DAY1), testId, { [moleTopic]: 2, [massTopic]: 5 });
+    expect(await planReady()).toBe(true);
+    expect(await confidenceOf(moleTopic)).toBe(2);
+    expect(await confidenceOf(massTopic)).toBe(5);
+  });
+
+  it("works with ratings that were already saved one by one", async () => {
+    await getDb().update(schema.tests).set({ planReadyAt: null }).where(eq(schema.tests.id, testId));
+    await startPlan(ctx(DAY1), testId);
+    expect(await planReady()).toBe(true);
+    expect(await confidenceOf(moleTopic)).toBe(2);
+  });
+
+  it("refuses while a topic has no rating anywhere", async () => {
+    await clearRatings();
+    await expect(startPlan(ctx(DAY1), testId, { [moleTopic]: 3 })).rejects.toThrow(/last topic/);
+    expect(await planReady()).toBe(false);
+  });
+
+  it("refuses a rating that is not 1 to 5", async () => {
+    await clearRatings();
+    await expect(startPlan(ctx(DAY1), testId, { [moleTopic]: 9, [massTopic]: 3 })).rejects.toThrow();
+    expect(await planReady()).toBe(false);
+  });
+
+  it("never writes a rating onto another student's topic", async () => {
+    const stranger = await createUser("stranger");
+    const [theirTest] = await getDb()
+      .insert(schema.tests)
+      .values({ userId: stranger, className: "Bio", name: "Cells", testDate: "2026-11-25", minutesPerDay: 30 })
+      .returning();
+    const [theirTopic] = await getDb()
+      .insert(schema.topics)
+      .values({ userId: stranger, testId: theirTest.id, name: "Cells", type: "concept", position: 0, confidence: 1 })
+      .returning();
+
+    await startPlan(ctx(DAY1), testId, { [theirTopic.id]: 5 });
+    expect(await confidenceOf(theirTopic.id)).toBe(1);
+    await expect(startPlan(ctx(DAY1), theirTest.id, { [theirTopic.id]: 5 })).rejects.toThrow(/not found/i);
   });
 });
 

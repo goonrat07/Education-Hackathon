@@ -76,7 +76,12 @@ export function SetupFlow({
     setBuilding(true);
     setError(null);
     try {
-      await api(`/api/tests/${test.id}/plan`, { method: "POST" });
+      // The ratings on screen go along: each one is saved when it is clicked,
+      // but the last click may not have reached the server yet.
+      const confidence = Object.fromEntries(
+        topics.flatMap((t) => (t.confidence === null ? [] : [[t.id, t.confidence] as const])),
+      );
+      await api(`/api/tests/${test.id}/plan`, { body: { confidence } });
       router.push(`/tests/${test.id}`);
       router.refresh();
     } catch (e) {

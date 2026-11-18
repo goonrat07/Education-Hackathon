@@ -9,6 +9,9 @@ import {
   storeExplanation,
   storePlan,
 } from "@/server/data/plans";
+import { getTest, updateTest } from "@/server/data/tests";
+import { listTopics, updateTopic } from "@/server/data/topics";
+import { InvalidRequestError, NotFoundError } from "@/server/errors";
 import { loadTestState, toPlanInput, type TestState } from "./state";
 
 export interface PlanView {
@@ -153,4 +156,44 @@ export async function ensureExplanation(
   const explanation = await explainPlan(ctx, explanationFacts(view, ctx.today));
   await storeExplanation(ctx.userId, testId, view.hash, explanation);
   return explanation;
+}
+
+/**
+ * Turns a test's plan on: allowed once every topic has a confidence rating.
+ *
+ * The ratings the student sees on screen are sent along and saved here first.
+ * Each rating is also saved when it is clicked, but that save can still be on
+ * its way when "Build my plan" is pressed, and the plan must not be refused
+ * for a rating the student has already given.
+ *
+ * @param ratings confidence (1 to 5) by topic id; ids that are not topics of this test are ignored
+ */
+export async function startPlan(
+  user: { userId: string },
+  testId: string,
+  ratings: Record<string, number> = {},
+): Promise<void> {
+  const test = await getTest(user.userId, testId);
+  if (!test) throw new NotFoundError("Test not found");
+  const topics = await listTopics(user.userId, testId);
+  if (topics.length === 0) throw new InvalidRequestError("Add at least one topic first.");
+
+  const rated = topics.map((topic) => ({ topic, confidence: ratings[topic.id] ?? topic.confidence }));
+  for (const { confidence } of rated) {
+    if (confidence !== null && (!Number.isInteger(confidence) || confidence < 1 || confidence > 5)) {
+      throw new InvalidRequestError("A confidence rating has to be a whole number from 1 to 5.");
+    }
+  }
+  const unrated = rated.filter((r) => r.confidence === null).length;
+  if (unrated > 0) {
+    throw new InvalidRequestError(
+      `Rate your confidence on ${unrated === 1 ? "the last topic" : `the remaining ${unrated} topics`} first.`,
+    );
+  }
+  for (const { topic, confidence } of rated) {
+    if (confidence !== null && confidence !== topic.confidence) {
+      await updateTopic(user.userId, topic.id, { confidence });
+    }
+  }
+  if (!test.planReadyAt) await updateTest(user.userId, testId, { planReadyAt: new Date() });
 }
