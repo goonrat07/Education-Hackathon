@@ -1,5 +1,6 @@
 import "server-only";
 import { LEVEL_NAMES } from "@/config/study";
+import { longDate } from "@/lib/format";
 import { MODES } from "@/lib/modes";
 import { buildPlan, planHash, type Plan } from "@/lib/plan";
 import { explainPlan } from "@/server/ai/explain";
@@ -96,8 +97,9 @@ export function explanationFacts(view: PlanView, today: string) {
   return {
     className: state.test.className,
     testName: state.test.name,
-    today,
-    testDate: state.test.testDate,
+    // Dates are written out ("Wednesday, November 18") so the explanation reads the way a student talks.
+    today: longDate(today),
+    testDate: longDate(state.test.testDate),
     minutesPerDay: state.test.minutesPerDay,
     studyDays: studyDays.length,
     studyDaysWithNothingPlanned: studyDays.filter(
@@ -116,7 +118,7 @@ export function explanationFacts(view: PlanView, today: string) {
     days: plan.days
       .filter((d) => d.sessions.length > 0 || d.isTestDay)
       .map((d) => ({
-        date: d.date,
+        date: longDate(d.date),
         isTestDay: d.isTestDay,
         sessions: d.sessions.map((s) => ({
           topic: name.get(s.topicId),

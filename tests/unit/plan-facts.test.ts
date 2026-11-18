@@ -37,7 +37,7 @@ describe("the facts Claude is given to explain a plan", () => {
     expect(view.plan.days.length).toBeGreaterThan(100);
     expect(facts.days.length).toBeLessThan(10);
     expect(facts.days.every((d) => d.sessions.length > 0 || d.isTestDay)).toBe(true);
-    expect(facts.days.at(-1)).toMatchObject({ date: "2027-03-01", isTestDay: true });
+    expect(facts.days.at(-1)).toMatchObject({ date: "Monday, March 1", isTestDay: true });
   });
 
   it("says how many study days there are and how many have nothing planned", () => {
@@ -53,7 +53,14 @@ describe("the facts Claude is given to explain a plan", () => {
   it("keeps every day of a short plan that is full", () => {
     const view = viewFor("2026-11-20");
     const facts = explanationFacts(view, TODAY);
-    expect(facts.days.map((d) => d.date)).toEqual(["2026-11-18", "2026-11-19", "2026-11-20"]);
+    expect(facts.days.map((d) => d.date)).toEqual(["Wednesday, November 18", "Thursday, November 19", "Friday, November 20"]);
     expect(facts.studyDaysWithNothingPlanned).toBe(0);
+  });
+
+  it("gives every date the way a student would say it", () => {
+    const facts = explanationFacts(viewFor("2026-11-20"), TODAY);
+    expect(facts.today).toBe("Wednesday, November 18");
+    expect(facts.testDate).toBe("Friday, November 20");
+    expect(JSON.stringify(facts)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 });

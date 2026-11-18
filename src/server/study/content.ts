@@ -10,7 +10,7 @@ import {
 } from "@/config/ai";
 import { CHECK_MIN_QUESTIONS, CHECK_TARGET_QUESTIONS } from "@/config/study";
 import type { ItemKind } from "@/lib/items";
-import type { ModeId } from "@/lib/modes";
+import { isModeId, type ModeId } from "@/lib/modes";
 import { AiOutputError, type AiContext } from "@/server/ai/client";
 import { generateCheckQuestions, generateFlashcards, generatePractice, type Candidate } from "@/server/ai/generate";
 import { labelPassages } from "@/server/ai/prompts";
@@ -151,4 +151,31 @@ export async function prepareCheckAhead(ctx: AiContext, topicId: string | null):
   } catch (error) {
     console.warn("Could not prepare a check ahead of time", error);
   }
+}
+
+/**
+ * Gets a session's material ready while the student is still on its first
+ * screen: the delayed check on an earlier topic, then the cards or problems,
+ * then the check that ends the session.
+ *
+ * The order matters. A check has to be made of questions the student has not
+ * seen, so the end check is written only once this session's study material
+ * exists and can be listed as "already seen". Written the other way round,
+ * the check repeated the very problems the student had just practiced.
+ */
+export async function prepareSessionAhead(
+  ctx: AiContext,
+  session: { topicId: string; mode: string; delayedTopicId: string | null },
+): Promise<void> {
+  await prepareCheckAhead(ctx, session.delayedTopicId);
+  try {
+    const topic = await getTopic(ctx.userId, session.topicId);
+    if (!topic || !isModeId(session.mode)) return;
+    await ensureStudyItems(ctx, topic, session.mode);
+  } catch (error) {
+    // The student's own request for the cards or problems reports this; no check is written blind.
+    console.warn("Could not prepare study material ahead of time", error);
+    return;
+  }
+  await prepareCheckAhead(ctx, session.topicId);
 }
