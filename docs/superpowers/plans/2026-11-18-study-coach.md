@@ -75,7 +75,7 @@ samples/                         materials for the proof run
 
 These are fixed here so every task agrees.
 
-**Local dates.** A student's "today" is the calendar date in their IANA timezone (saved from the browser). Dates are `YYYY-MM-DD` strings everywhere in `src/lib`.
+**Local dates.** A student's "today" is the calendar date in their IANA timezone, which the browser reports in a `tz` cookie (UTC until it has). Dates are `YYYY-MM-DD` strings everywhere in `src/lib`.
 
 **Modes.** `memorization → flashcards (10 min)`, `application | concept → practice (15 min)`. A session shrinks to the minutes left in a day, never below 10.
 
@@ -83,11 +83,15 @@ These are fixed here so every task agrees.
 
 **Levels** (`0 Not started, 1 Learning, 2 Got it, 3 Locked in`). Only a passed check moves a level, one step per pass: `0→1`, `1→2`. `2→3` requires a *delayed* check passed on a local date at least one day after the topic reached Got it. A failed check never changes a level. Nothing else (time spent, confidence, cards flipped) changes a level.
 
+**Missed days.** The last plan shown is stored and refreshed after every session. On a new day, sessions it still lists on earlier days were not done; the student is told how many, once, that day.
+
+**Simultaneous requests.** Starting a session, opening a check, reading a file and writing study material each run once per student and subject (`work_locks`), so a double tap never creates two sessions or spends two sets of AI calls.
+
 **Delayed checks.** A topic is due when it has been studied, is not Locked in, and its last activity (session or check) was on an earlier local date. At session start, the session's own topic is checked if due; otherwise the due topic with the oldest last activity (ties: lower level, then list order). At most one delayed check per session.
 
 **Readiness.** Mean of level weights `[0, 1/3, 2/3, 1]` across the test's topics.
 
-**Confidence gap.** `(confidence − 1) / 4 − latestCheckScore`. The three largest absolute gaps of at least 0.25 are called out; positive = overconfident.
+**Confidence gap.** `(confidence − 1) / 4 − latestCheckScore`. The three largest absolute gaps of at least 0.3 are called out (one step on either scale is 0.25, which is not a gap worth naming); positive = overconfident.
 
 **Planner.** Inputs: today, test date, minutes per day, minutes already done today, topics (position, type, confidence, level, latest check score, last studied date, sessions done).
 - Study days are today through the day before the test; if the test is today, today is the only study day. Test day is always the plan's last row.
@@ -119,7 +123,7 @@ These are fixed here so every task agrees.
 **Files:** Create `src/db/schema.ts`, `src/db/index.ts`, `scripts/migrate.ts`, `src/server/auth.ts`, `src/server/session.ts`, `src/app/api/auth/[...all]/route.ts`, `src/lib/auth-client.ts`.
 
 **Produces:**
-- Tables: Better Auth (`user`, `session`, `account`, `verification`, `rate_limit`) plus `user_settings`, `tests`, `files`, `file_chunks`, `passages`, `topics`, `topic_passages`, `items`, `check_sets`, `study_sessions`, `checks`, `check_answers`, `item_flags`, `ai_usage`, `ai_calls`, `plans`. Every app table has `user_id` referencing `user.id` with `ON DELETE CASCADE`.
+- Tables: Better Auth (`user`, `session`, `account`, `verification`, `rate_limit`) plus `tests`, `files`, `file_chunks`, `passages`, `topics`, `topic_passages`, `items`, `check_sets`, `study_sessions`, `checks`, `check_answers`, `item_flags`, `ai_usage`, `ai_calls`, `plans`, `work_locks`. Every app table has `user_id` referencing `user.id` with `ON DELETE CASCADE`.
 - `getDb(): NodePgDatabase<typeof schema>`
 - `requireUser(): Promise<{ userId: string; email: string; timezone: string; today: string }>` — throws `UnauthorizedError` (routes map it to 401).
 - Google provider is registered only when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set; `googleEnabled: boolean` is exported for the sign-in screen.
@@ -272,7 +276,7 @@ answersAgree(a: string, b: string): 'yes' | 'no' | 'unsure'      // numeric/unit
 
 - [ ] Sign-in; dashboard (today's plan, start-next-session button, tests with countdown and readiness bar); add test → materials → topics (rename, merge, delete, add, confidence) → plan; test page (plan, explanation, shortage, missed-day note, topics with level, confidence beside latest check, biggest gaps); session runner (delayed check → mode → check → confidence → what moved); source panel (page image or PDF page beside the highlighted passage); settings with delete-my-data.
 - [ ] `RichText` renders `$…$`, `$$…$$` and `\ce{…}` with KaTeX; unit test for the segment splitter.
-- [ ] Every card, question and answer shows a source link and a "This is wrong" button.
+- [ ] Every card, question and answer shows a source link and a "This is wrong" button. In a check, the source link appears once the check is handed in; before that it would give the answers away.
 - [ ] Verify each screen in a browser at 390 px and 1366 px. Commit per screen group.
 
 ### Task 10: Samples, local proof
