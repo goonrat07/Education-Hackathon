@@ -1,4 +1,6 @@
 import { listPassages } from "@/server/data/passages";
+import { getTest } from "@/server/data/tests";
+import { NotFoundError } from "@/server/errors";
 import { handle, id, json } from "@/server/http";
 import { requireUser } from "@/server/session";
 
@@ -6,7 +8,9 @@ import { requireUser } from "@/server/session";
 export async function GET(_request: Request, { params }: { params: Promise<{ testId: string }> }) {
   return handle(async () => {
     const user = await requireUser();
-    const passages = await listPassages(user.userId, id((await params).testId));
+    const testId = id((await params).testId);
+    if (!(await getTest(user.userId, testId))) throw new NotFoundError();
+    const passages = await listPassages(user.userId, testId);
     return json({
       passages: passages.map((p) => ({ id: p.id, fileId: p.fileId, fileName: p.fileName, page: p.page })),
     });
