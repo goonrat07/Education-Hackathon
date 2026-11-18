@@ -150,9 +150,6 @@ export async function mergeTopics(userId: string, sourceId: string, targetId: st
   if (!source || !target || source.testId !== target.testId) return false;
 
   await getDb().transaction(async (tx) => {
-    const mine = (table: { topicId: typeof schema.items.topicId; userId: typeof schema.items.userId }) =>
-      and(eq(table.topicId, sourceId), eq(table.userId, userId));
-
     const links = await tx
       .select({ passageId: schema.topicPassages.passageId })
       .from(schema.topicPassages)
@@ -163,10 +160,22 @@ export async function mergeTopics(userId: string, sourceId: string, targetId: st
         .values(links.map((l) => ({ topicId: targetId, passageId: l.passageId, userId })))
         .onConflictDoNothing();
     }
-    await tx.update(schema.items).set({ topicId: targetId }).where(mine(schema.items));
-    await tx.update(schema.checkSets).set({ topicId: targetId }).where(mine(schema.checkSets));
-    await tx.update(schema.studySessions).set({ topicId: targetId }).where(mine(schema.studySessions));
-    await tx.update(schema.checks).set({ topicId: targetId }).where(mine(schema.checks));
+    await tx
+      .update(schema.items)
+      .set({ topicId: targetId })
+      .where(and(eq(schema.items.topicId, sourceId), eq(schema.items.userId, userId)));
+    await tx
+      .update(schema.checkSets)
+      .set({ topicId: targetId })
+      .where(and(eq(schema.checkSets.topicId, sourceId), eq(schema.checkSets.userId, userId)));
+    await tx
+      .update(schema.studySessions)
+      .set({ topicId: targetId })
+      .where(and(eq(schema.studySessions.topicId, sourceId), eq(schema.studySessions.userId, userId)));
+    await tx
+      .update(schema.checks)
+      .set({ topicId: targetId })
+      .where(and(eq(schema.checks.topicId, sourceId), eq(schema.checks.userId, userId)));
     await tx
       .update(schema.studySessions)
       .set({ delayedTopicId: targetId })

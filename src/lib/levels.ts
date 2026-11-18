@@ -51,7 +51,7 @@ export function nextLevel(
 /** A test's readiness, 0 to 1: the average of what each topic's level is worth. */
 export function readiness(levels: Level[]): number {
   if (levels.length === 0) return 0;
-  const total = levels.reduce((sum, level) => sum + LEVEL_WEIGHTS[level], 0);
+  const total = levels.reduce<number>((sum, level) => sum + LEVEL_WEIGHTS[level], 0);
   return total / levels.length;
 }
 

@@ -104,3 +104,40 @@ export async function listSubmittedChecks(userId: string, testId: string): Promi
     )
     .orderBy(asc(schema.checks.submittedAt), asc(schema.checks.createdAt));
 }
+
+/** Every check opened in a session (the delayed check, if any, and the end check). */
+export async function listSessionChecks(userId: string, sessionId: string): Promise<Check[]> {
+  return getDb()
+    .select()
+    .from(schema.checks)
+    .where(and(eq(schema.checks.sessionId, sessionId), eq(schema.checks.userId, userId)))
+    .orderBy(asc(schema.checks.createdAt));
+}
+
+/**
+ * Takes one answer out of a submitted check's score after the student
+ * disputes it, and stores the recalculated result.
+ */
+export async function excludeCheckAnswer(
+  userId: string,
+  checkId: string,
+  itemId: string,
+  result: { scored: number; correct: number; passed: boolean; levelAfter: Level },
+): Promise<void> {
+  await getDb().transaction(async (tx) => {
+    await tx
+      .update(schema.checkAnswers)
+      .set({ excluded: true })
+      .where(
+        and(
+          eq(schema.checkAnswers.checkId, checkId),
+          eq(schema.checkAnswers.itemId, itemId),
+          eq(schema.checkAnswers.userId, userId),
+        ),
+      );
+    await tx
+      .update(schema.checks)
+      .set(result)
+      .where(and(eq(schema.checks.id, checkId), eq(schema.checks.userId, userId)));
+  });
+}

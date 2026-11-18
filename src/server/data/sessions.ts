@@ -114,3 +114,25 @@ export async function listCompletedSessions(userId: string, testId: string): Pro
     )
     .orderBy(asc(schema.studySessions.startedAt));
 }
+
+/** A session on this topic that was started today and not finished, if there is one. */
+export async function findActiveSession(
+  userId: string,
+  topicId: string,
+  localDate: string,
+): Promise<StudySession | null> {
+  const [row] = await getDb()
+    .select()
+    .from(schema.studySessions)
+    .where(
+      and(
+        eq(schema.studySessions.topicId, topicId),
+        eq(schema.studySessions.userId, userId),
+        eq(schema.studySessions.localDate, localDate),
+        eq(schema.studySessions.status, "active"),
+      ),
+    )
+    .orderBy(asc(schema.studySessions.startedAt))
+    .limit(1);
+  return row ?? null;
+}
