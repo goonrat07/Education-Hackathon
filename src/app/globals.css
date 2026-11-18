@@ -1,1 +1,392 @@
 @import "tailwindcss";
+
+/*
+ * Study Coach design tokens: pencil, highlighter, ink on notebook paper.
+ * A topic's level is shown by how permanent its mark is: pencil (not
+ * started), yellow highlighter (learning), green highlighter (got it),
+ * ink (locked in).
+ */
+@theme {
+  --color-paper: #fafbfd;
+  --color-sheet: #ffffff;
+  --color-ink: #16254a;
+  --color-ink-soft: #33426b;
+  --color-pencil: #5f6980;
+  --color-rule: #c7d6ee;
+  --color-rule-faint: #e4ecf8;
+  --color-margin: #f2a1a1;
+  --color-hi-yellow: #ffe74c;
+  --color-hi-green: #a8f0a0;
+  --color-redpen: #c8203a;
+  --color-redpen-wash: #fde8ea;
+  --color-pass: #17693a;
+  --color-pass-wash: #e3f7e0;
+
+  --font-display: "Besley Variable", Georgia, "Times New Roman", serif;
+  --font-sans: "Atkinson Hyperlegible Next Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Type scale (ratio about 1.2 from a 17px body). */
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1.0625rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.875rem;
+  --text-3xl: 2.375rem;
+  --text-4xl: 3.25rem;
+
+  --radius-paper: 3px;
+  --radius-control: 9px;
+
+  --shadow-card: 0 1px 0 #c7d6ee, 0 10px 24px -14px rgb(22 37 74 / 0.35);
+}
+
+@layer base {
+  html {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+    font-size: var(--text-base);
+    line-height: 1.5;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 620;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-ink);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: var(--color-hi-yellow);
+    color: var(--color-ink);
+  }
+
+  button,
+  [role="button"],
+  summary {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@layer components {
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.55rem 1.1rem;
+    border-radius: var(--radius-control);
+    border: 2px solid var(--color-ink);
+    font-weight: 650;
+    font-size: var(--text-base);
+    line-height: 1.2;
+    text-decoration: none;
+    transition:
+      background-color 120ms,
+      color 120ms,
+      transform 80ms;
+  }
+
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  .btn:disabled {
+    opacity: 0.45;
+  }
+
+  /* The one thing to do next: written in ink. */
+  .btn-ink {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+
+  .btn-ink:hover:not(:disabled) {
+    background: var(--color-ink-soft);
+  }
+
+  .btn-paper {
+    background: var(--color-sheet);
+    color: var(--color-ink);
+  }
+
+  .btn-paper:hover:not(:disabled) {
+    background: var(--color-rule-faint);
+  }
+
+  .btn-lg {
+    min-height: 3.25rem;
+    padding: 0.8rem 1.5rem;
+    font-size: var(--text-lg);
+  }
+
+  .btn-sm {
+    min-height: 2.25rem;
+    padding: 0.3rem 0.75rem;
+    font-size: var(--text-sm);
+    border-width: 1.5px;
+  }
+
+  /* Quiet actions read as underlined handwriting, not as buttons. */
+  .link {
+    color: var(--color-ink);
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: var(--color-rule);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    background: none;
+    border: 0;
+    padding: 0;
+  }
+
+  .link:hover {
+    text-decoration-color: var(--color-ink);
+  }
+
+  .link-quiet {
+    color: var(--color-pencil);
+    font-weight: 500;
+  }
+
+  .link-danger {
+    color: var(--color-redpen);
+    text-decoration-color: color-mix(in srgb, var(--color-redpen) 35%, transparent);
+  }
+
+  /* ── Fields: a line to write on ── */
+  .field-label {
+    display: block;
+    font-size: var(--text-sm);
+    font-weight: 650;
+    margin-bottom: 0.2rem;
+  }
+
+  .field {
+    display: block;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.45rem 0.6rem;
+    background: var(--color-sheet);
+    border: 0;
+    border-bottom: 2px solid var(--color-rule);
+    border-radius: var(--radius-paper) var(--radius-paper) 0 0;
+    color: var(--color-ink);
+    font: inherit;
+  }
+
+  .field::placeholder {
+    color: var(--color-pencil);
+    opacity: 0.75;
+  }
+
+  .field:hover {
+    border-bottom-color: var(--color-ink-soft);
+  }
+
+  .field:focus-visible {
+    outline: none;
+    border-bottom-color: var(--color-ink);
+    background: color-mix(in srgb, var(--color-hi-yellow) 22%, var(--color-sheet));
+  }
+
+  .field-hint {
+    font-size: var(--text-xs);
+    color: var(--color-pencil);
+    margin-top: 0.3rem;
+  }
+
+  /* ── Level marks: pencil, highlighter, ink ── */
+  .mark {
+    display: inline;
+    padding: 0.06em 0.4em 0.1em;
+    margin: 0 -0.15em;
+    border-radius: 0.5em 0.2em 0.45em 0.25em;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  .mark-0 {
+    padding-inline: 0;
+    margin: 0;
+    border-radius: 0;
+    background: linear-gradient(to right, var(--color-pencil) 60%, transparent 0) bottom left / 7px 1.5px repeat-x;
+    padding-bottom: 0.18em;
+  }
+
+  .mark-1 {
+    background: var(--color-hi-yellow);
+  }
+
+  .mark-2 {
+    background: var(--color-hi-green);
+  }
+
+  .mark-3 {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+
+  /* A mark being drawn: used once, on the screen that shows what moved. */
+  .mark-draw {
+    background-repeat: no-repeat;
+    background-size: 0% 100%;
+    animation: mark-draw 700ms cubic-bezier(0.3, 0.7, 0.2, 1) 350ms forwards;
+  }
+
+  .mark-draw.mark-1 {
+    background-color: transparent;
+    background-image: linear-gradient(var(--color-hi-yellow), var(--color-hi-yellow));
+  }
+
+  .mark-draw.mark-2 {
+    background-color: transparent;
+    background-image: linear-gradient(var(--color-hi-green), var(--color-hi-green));
+  }
+
+  .mark-draw.mark-3 {
+    background-color: transparent;
+    background-image: linear-gradient(var(--color-ink), var(--color-ink));
+    color: var(--color-ink);
+    animation:
+      mark-draw 700ms cubic-bezier(0.3, 0.7, 0.2, 1) 350ms forwards,
+      mark-ink-text 1ms linear 700ms forwards;
+  }
+
+  /* ── Notebook page: horizontal rules and a margin line ── */
+  .ruled-top {
+    border-top: 1.5px solid var(--color-rule);
+  }
+
+  .ruled-bottom {
+    border-bottom: 1.5px solid var(--color-rule);
+  }
+
+  .margin-line {
+    border-left: 2px solid var(--color-margin);
+  }
+
+  /* ── Index card ── */
+  .index-card {
+    background:
+      linear-gradient(var(--color-margin), var(--color-margin)) 0 2.6rem / 100% 1.5px no-repeat,
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent calc(1.9rem - 1px),
+        var(--color-rule-faint) calc(1.9rem - 1px),
+        var(--color-rule-faint) 1.9rem
+      )
+      0 2.6rem,
+      var(--color-sheet);
+    border-radius: var(--radius-paper);
+    box-shadow: var(--shadow-card);
+  }
+
+  .sheet {
+    background: var(--color-sheet);
+    border-radius: var(--radius-paper);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* ── Rendered math ── */
+  .rich .katex {
+    font-size: 1.06em;
+  }
+
+  .rich .katex-display {
+    margin: 0.6em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 2px;
+  }
+
+  /* ── Working indicator: a pencil line being drawn ── */
+  .working-line {
+    position: relative;
+    height: 3px;
+    overflow: hidden;
+    background: var(--color-rule-faint);
+    border-radius: 2px;
+  }
+
+  .working-line::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: var(--color-ink);
+    border-radius: 2px;
+    animation: working 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes mark-draw {
+  to {
+    background-size: 100% 100%;
+  }
+}
+
+@keyframes mark-ink-text {
+  to {
+    color: var(--color-paper);
+  }
+}
+
+@keyframes working {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark-draw,
+  .mark-draw.mark-3 {
+    animation: none;
+    background-size: 100% 100%;
+  }
+
+  .mark-draw.mark-3 {
+    color: var(--color-paper);
+  }
+
+  .working-line::after {
+    animation: none;
+    width: 100%;
+    opacity: 0.35;
+  }
+
+  .btn {
+    transition: none;
+  }
+}

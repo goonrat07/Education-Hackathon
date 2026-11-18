@@ -188,7 +188,13 @@ export function progressOf(state: TestState): Progress {
       gap: confidenceGap(t.confidence, latest),
     };
   });
-  const gaps = biggestGaps(rows.map((r) => ({ ...r, latest: r.latestCheck }))).map(({ latest: _latest, ...row }) => row);
+  const flagged = new Set(
+    biggestGaps(rows.map((r) => ({ topicId: r.topicId, confidence: r.confidence, latest: r.latestCheck }))).map(
+      (g) => g.topicId,
+    ),
+  );
+  // biggestGaps returns them largest first; keep that order.
+  const gaps = [...flagged].map((id) => rows.find((r) => r.topicId === id)!);
   return { readiness: state.readiness, rows, gaps };
 }
 

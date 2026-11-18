@@ -16,10 +16,13 @@
     "test:integration": "vitest run tests/integration",
     "db:start": "./scripts/dev-db.sh",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx scripts/migrate.ts"
+    "db:migrate": "tsx scripts/migrate.ts",
+    "postinstall": "node scripts/copy-pdf-worker.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.10.0",
+    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
+    "@fontsource-variable/besley": "^5.3.0",
     "@vercel/functions": "^3.11.3",
     "better-auth": "^1.7.25",
     "clsx": "^2.1.1",
