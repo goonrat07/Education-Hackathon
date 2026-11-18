@@ -1,5 +1,5 @@
 {
-  "id": "41a4bede-b6bf-46f1-a478-48207cfc0d03",
+  "id": "e269bac6-9223-4f16-8f48-b517ddd07d3d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1408,6 +1408,19 @@
           "primaryKey": false,
           "notNull": false
         },
+        "missed_on": {
+          "name": "missed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "missed_sessions": {
+          "name": "missed_sessions",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp with time zone",
@@ -1694,6 +1707,12 @@
           "notNull": true,
           "default": 0
         },
+        "delayed_topic_id": {
+          "name": "delayed_topic_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "completed_at": {
           "name": "completed_at",
           "type": "timestamp with time zone",
@@ -1771,6 +1790,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "study_sessions_delayed_topic_id_topics_id_fk": {
+          "name": "study_sessions_delayed_topic_id_topics_id_fk",
+          "tableFrom": "study_sessions",
+          "tableTo": "topics",
+          "columnsFrom": [
+            "delayed_topic_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

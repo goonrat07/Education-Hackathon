@@ -291,6 +291,8 @@ export const studySessions = pgTable(
     localDate: date("local_date", { mode: "string" }).notNull(),
     plannedMinutes: integer("planned_minutes").notNull(),
     readinessBefore: real("readiness_before").notNull().default(0),
+    /** The earlier topic whose delayed check opens this session, if one was due. */
+    delayedTopicId: uuid("delayed_topic_id").references(() => topics.id, { onDelete: "set null" }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
   (t) => [index("sessions_test_idx").on(t.testId), index("sessions_topic_idx").on(t.topicId)],
@@ -400,5 +402,8 @@ export const plans = pgTable("plans", {
   explanation: text("explanation"),
   /** Hash of the plan the explanation was written for. */
   explanationHash: text("explanation_hash"),
+  /** Set when a rebuild found planned sessions left undone on earlier days. */
+  missedOn: date("missed_on", { mode: "string" }),
+  missedSessions: integer("missed_sessions").notNull().default(0),
   updatedAt: updatedAt(),
 });
