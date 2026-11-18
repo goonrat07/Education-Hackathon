@@ -3,6 +3,7 @@ import { attachDatabasePool } from "@vercel/functions";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { SetupIncompleteError } from "@/server/errors";
+import { guardPool, withStrictSsl } from "./pool";
 import * as schema from "./schema";
 
 export type Db = NodePgDatabase<typeof schema>;
@@ -18,9 +19,17 @@ export function getDb(): Db {
   if (!db) {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) throw new SetupIncompleteError("the database");
-    pool = new pg.Pool({ connectionString, max: 5, idleTimeoutMillis: 5000 });
-    // Lets Vercel close idle connections before a function instance is suspended.
+    pool = new pg.Pool({
+      connectionString: withStrictSsl(connectionString),
+      max: 5,
+      idleTimeoutMillis: 5000,
+      keepAlive: true,
+    });
+    // Asks Vercel to keep the instance awake until idle connections have been closed...
     attachDatabasePool(pool);
+    // ...and, because an instance can still be paused with connections open,
+    // checks any connection that has sat unused before trusting it again.
+    guardPool(pool);
     db = drizzle(pool, { schema });
   }
   return db;
