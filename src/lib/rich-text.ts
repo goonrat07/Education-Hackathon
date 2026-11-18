@@ -18,9 +18,28 @@ function closingBrace(text: string, open: number): number {
 }
 
 /**
+ * True when what sits between two dollar signs reads as prose: it holds a
+ * whole word of three or more letters. Commands (`\times`) and braced text
+ * (`\text{g}`) are part of a formula and do not count.
+ */
+function hasProseWord(body: string): boolean {
+  let bare = body.replace(/\\[a-zA-Z]+/g, " ");
+  for (let previous = ""; previous !== bare; ) {
+    previous = bare;
+    bare = bare.replace(/\{[^{}]*\}/g, " ");
+  }
+  return /(^|\s)[A-Za-z]{3,}(?=$|[\s.,;:!?)])/.test(bare);
+}
+
+/**
  * Where the inline formula opened at `start` ends, or -1 when the `$` is not
- * the start of a formula. A formula never begins or ends with a space and is
- * never followed by a digit, which keeps "$5 and $10" as plain prices.
+ * the start of a formula but a price.
+ *
+ * A formula never begins or ends with a space and is never followed by a
+ * digit. The first dollar sign after the opening one decides: if it cannot
+ * close a formula, the opening one was a price ("$5. Let $x$ be…"). A stretch
+ * that starts with a digit and holds a prose word is a price too
+ * ("$5 each ($x$ in total)").
  */
 function inlineEnd(text: string, start: number): number {
   if (/\s/.test(text[start + 1] ?? " ")) return -1;
@@ -31,7 +50,9 @@ function inlineEnd(text: string, start: number): number {
       return -1;
     } else if (text[i] === "$") {
       const closesCleanly = !/\s/.test(text[i - 1]) && !/\d/.test(text[i + 1] ?? "");
-      if (closesCleanly) return i;
+      if (!closesCleanly) return -1;
+      const body = text.slice(start + 1, i);
+      return /\d/.test(body[0]) && hasProseWord(body) ? -1 : i;
     }
   }
   return -1;

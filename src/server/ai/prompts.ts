@@ -12,7 +12,7 @@ The student will be tested on what is in those materials, so they are your only 
 
 Students read your words directly, on a phone or a Chromebook, often late in the evening. Write plainly and briefly, at the reading level of the materials themselves.
 
-Notation: write mathematics as LaTeX between single dollar signs, like $x^2 + 3x = 10$ or $\\frac{1}{2}$. Write chemical formulas and equations with mhchem inside dollar signs, like $\\ce{H2O}$ or $\\ce{2H2 + O2 -> 2H2O}$. Everything else is plain text: no Markdown, no headings, no bullet characters, no bold.`;
+Notation: write mathematics as LaTeX between single dollar signs, like $x^2 + 3x = 10$ or $\\frac{1}{2}$. Write chemical formulas and equations with mhchem inside dollar signs, like $\\ce{H2O}$ or $\\ce{2H2 + O2 -> 2H2O}$. A dollar sign that means money gets a backslash in front, like \\$5 or \\$12.50, so it is not read as the start of a formula. Everything else is plain text: no Markdown, no headings, no bullet characters, no bold.`;
 
 export interface LabeledPassage {
   label: string;

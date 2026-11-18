@@ -54,6 +54,17 @@ describe("quoteInPassage", () => {
     expect(quoteInPassage("K | 39.10", TABLE)).toBe(false);
   });
 
+  it("does not let a quote move the decimal point", () => {
+    expect(quoteInPassage("Na | 2.299", TABLE)).toBe(false);
+    expect(quoteInPassage("the sample holds 1.5 mol of gas", "At first the sample holds 15 mol of gas.")).toBe(false);
+    expect(quoteInPassage("the molar mass of water is 1802 g/mol", "The molar mass of water is 18.02 g/mol.")).toBe(false);
+  });
+
+  it("still matches a decimal number that ends a sentence", () => {
+    expect(quoteInPassage("water is 18.02", "The molar mass of water is 18.02. Carbon dioxide is 44.01.")).toBe(true);
+    expect(quoteInPassage("water is 18.02. Carbon", "The molar mass of water is 18.02. Carbon dioxide is 44.01.")).toBe(true);
+  });
+
   it("rejects a whole line that is only a word or a number", () => {
     expect(quoteInPassage("or", "Use the first value\nor\nthe second value")).toBe(false);
     expect(quoteInPassage("2.", "1.\n2.\n3.")).toBe(false);

@@ -48,6 +48,57 @@ describe("splitMath", () => {
     ]);
   });
 
+  it("does not typeset a price that is followed by a formula", () => {
+    expect(splitMath("A ticket costs $5. Let $x$ be the number of tickets sold.")).toEqual([
+      { type: "text", value: "A ticket costs $5. Let " },
+      { type: "inline", value: "x" },
+      { type: "text", value: " be the number of tickets sold." },
+    ]);
+  });
+
+  it("keeps a price with cents apart from a formula later in the sentence", () => {
+    expect(splitMath("Each costs $12.50, so the total is $T = 12.5n$ dollars.")).toEqual([
+      { type: "text", value: "Each costs $12.50, so the total is " },
+      { type: "inline", value: "T = 12.5n" },
+      { type: "text", value: " dollars." },
+    ]);
+  });
+
+  it("keeps a price apart from a formula in brackets right after it", () => {
+    expect(splitMath("Tickets are $5 each ($x$ in total).")).toEqual([
+      { type: "text", value: "Tickets are $5 each (" },
+      { type: "inline", value: "x" },
+      { type: "text", value: " in total)." },
+    ]);
+  });
+
+  it("handles formulas with prices between them", () => {
+    expect(splitMath("$x$ costs $5 and $y$ costs $6")).toEqual([
+      { type: "inline", value: "x" },
+      { type: "text", value: " costs $5 and " },
+      { type: "inline", value: "y" },
+      { type: "text", value: " costs $6" },
+    ]);
+  });
+
+  it("still typesets a formula that starts with a number", () => {
+    const formulas = [
+      "6.022 \\times 10^{23}",
+      "2(1.008) + 16.00 = 18.02",
+      "3xy + 2 = 11",
+      "36.04\\ \\text{g} \\div 18.02\\ \\text{g/mol} = 2.000\\ \\text{mol}",
+      "100\\% \\times \\frac{\\text{actual yield}}{\\text{theoretical yield}}",
+      "75\\%",
+    ];
+    for (const formula of formulas) {
+      expect(splitMath("So $" + formula + "$ it is.")).toEqual([
+        { type: "text", value: "So " },
+        { type: "inline", value: formula },
+        { type: "text", value: " it is." },
+      ]);
+    }
+  });
+
   it("treats an escaped dollar sign as a dollar sign", () => {
     expect(splitMath("Pay \\$3 for $n$ items")).toEqual([
       { type: "text", value: "Pay $3 for " },

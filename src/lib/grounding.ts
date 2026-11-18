@@ -3,12 +3,18 @@
  * Pure text functions: no AI, no I/O.
  */
 
-/** Letters and digits only, lower case: what is left when formatting is ignored. */
+/**
+ * Letters and digits only, lower case: what is left when formatting is
+ * ignored. A decimal point between two digits is kept, because moving it
+ * changes the number: "22.99" and "2.299" must not look the same.
+ */
 function skeleton(text: string): string {
   return text
     .normalize("NFKC")
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, "");
+    .replace(/(\d)\.(?=\d)/g, "$1\u0001")
+    .replace(/[^\p{L}\p{N}\u0001]+/gu, "")
+    .replace(/\u0001/g, ".");
 }
 
 /** A supporting quote must be at least this long once formatting is stripped. */
