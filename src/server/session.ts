@@ -25,9 +25,13 @@ export interface UserContext {
 
 /** The signed-in student, or null. Reads the request, so call it inside a Suspense boundary. */
 export async function getUser(): Promise<UserContext | null> {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) return null;
+  // Read the request first. While a page is being prerendered there is no
+  // request, and these calls are what tell Next.js to leave this part for request time.
+  const requestHeaders = await headers();
   const zone = (await cookies()).get(TIMEZONE_COOKIE)?.value ?? "";
+
+  const session = await getAuth().api.getSession({ headers: requestHeaders });
+  if (!session) return null;
   const timezone = isValidTimeZone(zone) ? zone : "UTC";
   return {
     userId: session.user.id,
