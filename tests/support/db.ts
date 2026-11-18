@@ -129,7 +129,7 @@ export async function seedStudentData(userId: string): Promise<Seeded> {
     .returning();
   await db.insert(schema.checkAnswers).values({ checkId: check.id, itemId: checkItem.id, userId, correct: true });
   await db.insert(schema.itemFlags).values({ userId, itemId: item.id, note: "typo" });
-  await db.insert(schema.aiUsage).values({ userId, day: "2026-11-18", calls: 3 });
+  await db.insert(schema.aiUsage).values({ userId, day: "2026-11-18", calls: 3 }).onConflictDoNothing();
   await db.insert(schema.aiCalls).values({ userId, task: "extract", model: "claude-sonnet-5-5", ok: true });
   await db.insert(schema.plans).values({
     testId: test.id,

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ACCEPTED_TYPES, MAX_FILES_PER_TEST, maxBytesFor } from "@/config/uploads";
-import { createFile, listFiles } from "@/server/data/files";
+import { ACCEPTED_TYPES, MAX_FILES_PER_TEST, MAX_STORED_BYTES_PER_STUDENT, maxBytesFor } from "@/config/uploads";
+import { createFile, listFiles, storedBytesForUser } from "@/server/data/files";
 import { InvalidRequestError, NotFoundError } from "@/server/errors";
 import { handle, id, json, readBody } from "@/server/http";
 import { requireUser } from "@/server/session";
@@ -27,6 +27,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ tes
     }
     if ((await listFiles(user.userId, testId)).length >= MAX_FILES_PER_TEST) {
       throw new InvalidRequestError(`A test can have up to ${MAX_FILES_PER_TEST} files.`);
+    }
+    if ((await storedBytesForUser(user.userId)) + input.sizeBytes > MAX_STORED_BYTES_PER_STUDENT) {
+      throw new InvalidRequestError(
+        "Your account's file storage is full. Remove files from older tests, or delete those tests, to make room.",
+      );
     }
     const file = await createFile(user.userId, testId, input);
     if (!file) throw new NotFoundError();

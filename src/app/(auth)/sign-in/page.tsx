@@ -49,7 +49,10 @@ export default function SignInPage() {
       </section>
 
       <section className="sheet p-6 sm:p-8">
-        <SignInForm googleEnabled={googleEnabled} />
+        {/* The form reads the address bar (for a sign-in error), which is only known per request. */}
+        <Suspense fallback={<div className="h-72" aria-busy="true" />}>
+          <SignInForm googleEnabled={googleEnabled} />
+        </Suspense>
       </section>
     </main>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
@@ -18,6 +19,16 @@ function explain(error: { code?: string; status?: number; message?: string }): s
   if (error.code && MESSAGES[error.code]) return MESSAGES[error.code];
   if (error.status === 429) return "Too many tries. Wait a minute, then try again.";
   return error.message || "That didn't work. Try again.";
+}
+
+/** Reasons Google sign-in can send the student back here, in words. */
+function explainRedirect(code: string | null): string | null {
+  if (!code) return null;
+  if (code === "account_not_linked") {
+    return "There's already an account with that email that signs in with a password. Use your email and password below.";
+  }
+  if (code === "access_denied") return "Google sign-in was cancelled.";
+  return "Google sign-in didn't work. Try again, or use your email and password.";
 }
 
 function GoogleLogo() {
@@ -46,7 +57,8 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const redirectError = explainRedirect(useSearchParams().get("error"));
+  const [error, setError] = useState<string | null>(redirectError);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -69,7 +81,11 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
   async function withGoogle() {
     setPending(true);
     setError(null);
-    const result = await authClient.signIn.social({ provider: "google", callbackURL: "/" });
+    const result = await authClient.signIn.social({
+      provider: "google",
+      callbackURL: "/",
+      errorCallbackURL: "/sign-in",
+    });
     if (result.error) {
       setError(explain(result.error));
       setPending(false);

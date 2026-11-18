@@ -17,3 +17,10 @@ export const PHOTO_MAX_EDGE = 2000;
 export function maxBytesFor(mime: string): number {
   return mime === PDF_TYPE ? MAX_PDF_BYTES : MAX_IMAGE_BYTES;
 }
+
+/**
+ * Per-student ceilings that keep the app inside the free database tier
+ * (0.5 GB shared by everyone). Raise them if you move to a bigger plan.
+ */
+export const MAX_TESTS_PER_STUDENT = 30;
+export const MAX_STORED_BYTES_PER_STUDENT = 100 * 1024 * 1024;

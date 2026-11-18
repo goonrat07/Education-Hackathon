@@ -92,3 +92,12 @@ export async function deleteFile(userId: string, fileId: string): Promise<boolea
     .returning({ id: schema.files.id });
   return rows.length > 0;
 }
+
+/** Total size of everything a student has uploaded, from the sizes declared at upload. */
+export async function storedBytesForUser(userId: string): Promise<number> {
+  const [row] = await getDb()
+    .select({ total: sql<number>`coalesce(sum(${schema.files.sizeBytes}), 0)::int` })
+    .from(schema.files)
+    .where(eq(schema.files.userId, userId));
+  return row?.total ?? 0;
+}

@@ -55,3 +55,7 @@ export async function deleteTest(userId: string, testId: string): Promise<boolea
     .returning({ id: schema.tests.id });
   return rows.length > 0;
 }
+
+export async function countTests(userId: string): Promise<number> {
+  return getDb().$count(schema.tests, eq(schema.tests.userId, userId));
+}

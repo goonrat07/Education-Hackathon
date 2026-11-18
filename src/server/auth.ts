@@ -48,6 +48,12 @@ function createAuth() {
     socialProviders: googleEnabled
       ? { google: { clientId: googleClientId!, clientSecret: googleClientSecret! } }
       : {},
+    account: {
+      // Signing in with Google never attaches itself to an existing email-and-password
+      // account. Without email verification, automatic linking would let someone who
+      // registered another person's address first get into that person's account.
+      accountLinking: { disableImplicitLinking: true },
+    },
     // Counters live in Postgres because serverless instances share no memory.
     rateLimit: { enabled: true, storage: "database" },
   });
