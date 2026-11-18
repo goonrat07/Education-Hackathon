@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MAX_FILES_PER_TEST } from "@/config/uploads";
+import { MAX_FILES_PER_TEST, MAX_PAGES_PER_TEST, MAX_PDF_PAGES } from "@/config/uploads";
 import { api, messageFrom } from "@/lib/api";
 import { readFile, uploadFile, type UploadedFile } from "@/lib/uploads-client";
 
@@ -156,8 +156,9 @@ export function Materials({
           </button>
         </div>
         <p className="field-hint">
-          Up to {MAX_FILES_PER_TEST} files. PDFs up to 20 MB. On a phone, &ldquo;Add my notes&rdquo; lets you take a
-          photo.
+          Up to {MAX_FILES_PER_TEST} files and {MAX_PAGES_PER_TEST} pages in all. A PDF can be up to {MAX_PDF_PAGES}{" "}
+          pages and 20 MB, so add the chapter or handout your test covers rather than a whole textbook. On a phone,
+          &ldquo;Add my notes&rdquo; lets you take a photo.
         </p>
         <input
           ref={teacherInput}

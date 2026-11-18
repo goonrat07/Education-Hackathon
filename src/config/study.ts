@@ -36,3 +36,5 @@ export const GAP_CALLOUT_COUNT = 3;
 /** Limits on what a student can enter. */
 export const MIN_MINUTES_PER_DAY = 10;
 export const MAX_MINUTES_PER_DAY = 240;
+/** A test can be at most this many days away. Catches a mistyped year and keeps plans a sensible length. */
+export const MAX_TEST_DAYS_AHEAD = 366;

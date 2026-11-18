@@ -1,53 +1,17 @@
 import "server-only";
-import { ZodError, type z } from "zod";
-import { AI_DAILY_CALL_LIMIT } from "@/config/ai";
-import { AiBusyError, AiOutputError, AiRefusalError, AiUnavailableError } from "@/server/ai/client";
-import { AiCeilingError, AiLimitError } from "@/server/data/usage";
-import { InvalidRequestError, NoMaterialError, NotFoundError, SetupIncompleteError } from "@/server/errors";
-import { UnauthorizedError } from "@/server/session";
+import type { z } from "zod";
+import { describeError } from "@/server/error-messages";
+import { InvalidRequestError, NotFoundError } from "@/server/errors";
 
 export function json(data: unknown, status = 200): Response {
   return Response.json(data, { status });
 }
 
-function fail(status: number, error: string, code?: string): Response {
-  return Response.json({ error, code }, { status });
-}
-
 /** Turns anything thrown by a handler into a JSON error the browser can show. */
 export function errorResponse(error: unknown): Response {
-  if (error instanceof SetupIncompleteError) {
-    return fail(503, "Study Coach isn't fully set up yet: its database isn't connected.", "setup_incomplete");
-  }
-  if (error instanceof UnauthorizedError) return fail(401, "Sign in to continue.", "unauthorized");
-  if (error instanceof NotFoundError) return fail(404, "That could not be found.", "not_found");
-  if (error instanceof NoMaterialError) return fail(400, error.message, "no_material");
-  if (error instanceof InvalidRequestError) return fail(400, error.message, "invalid");
-  if (error instanceof ZodError) return fail(400, "Some of what was sent is missing or not valid.", "invalid");
-  if (error instanceof AiLimitError) {
-    return fail(
-      429,
-      `You've used all ${AI_DAILY_CALL_LIMIT} of today's AI requests. They reset at midnight.`,
-      "ai_limit",
-    );
-  }
-  if (error instanceof AiCeilingError) {
-    return fail(
-      429,
-      "Study Coach has used all the AI requests it allows in one day, across everyone using it. They reset tomorrow.",
-      "ai_ceiling",
-    );
-  }
-  if (error instanceof AiUnavailableError) {
-    return fail(503, "Claude isn't connected on this server yet, so this step can't run.", "ai_unavailable");
-  }
-  if (error instanceof AiBusyError) return fail(503, "Claude is busy right now. Give it a minute and try again.", "ai_busy");
-  if (error instanceof AiRefusalError) {
-    return fail(422, "Claude declined to work with this material.", "ai_refusal");
-  }
-  if (error instanceof AiOutputError) return fail(502, error.message, "ai_output");
-  console.error("Unhandled route error", error);
-  return fail(500, "Something went wrong on our side. Try again.", "server_error");
+  const { status, code, message } = describeError(error);
+  if (code === "server_error") console.error("Unhandled route error", error);
+  return Response.json({ error: message, code }, { status });
 }
 
 /** Wraps a route handler so every failure becomes a JSON error response. */

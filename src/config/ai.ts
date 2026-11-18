@@ -58,7 +58,7 @@ export const AI_EFFORT: Record<AiTask, "low" | "medium" | "high"> = {
 /** Output ceiling per call, including Claude's thinking. */
 export const AI_MAX_TOKENS: Record<AiTask, number> = {
   extract: 16000,
-  topics: 8000,
+  topics: 16000,
   generate: 12000,
   solve: 8000,
   judge: 4000,

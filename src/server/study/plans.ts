@@ -4,7 +4,11 @@ import { MODES } from "@/lib/modes";
 import { buildPlan, planHash, type Plan } from "@/lib/plan";
 import { explainPlan } from "@/server/ai/explain";
 import type { AiContext } from "@/server/ai/client";
-import { getStoredPlan, storeExplanation, storePlan } from "@/server/data/plans";
+import {
+  getStoredPlan,
+  storeExplanation,
+  storePlan,
+} from "@/server/data/plans";
 import { loadTestState, toPlanInput, type TestState } from "./state";
 
 export interface PlanView {
@@ -22,7 +26,11 @@ export interface PlanView {
  * current state, so it is already up to date after a session or a missed day.
  * The last plan shown is kept only to notice what was missed.
  */
-export async function getPlanView(userId: string, testId: string, today: string): Promise<PlanView | null> {
+export async function getPlanView(
+  userId: string,
+  testId: string,
+  today: string,
+): Promise<PlanView | null> {
   const state = await loadTestState(userId, testId, today);
   if (!state) return null;
   const plan = buildPlan(toPlanInput(state, today));
@@ -36,7 +44,8 @@ export async function getPlanView(userId: string, testId: string, today: string)
     // sessions it still lists on earlier days are the ones that were not done.
     let skipped = 0;
     for (const day of (stored.plan as Plan).days) {
-      if (day.date >= stored.computedOn && day.date < today) skipped += day.sessions.length;
+      if (day.date >= stored.computedOn && day.date < today)
+        skipped += day.sessions.length;
     }
     missedOn = skipped > 0 ? today : null;
     missedSessions = skipped;
@@ -53,7 +62,13 @@ export async function getPlanView(userId: string, testId: string, today: string)
     stored.missedOn !== missedOn ||
     stored.missedSessions !== missedSessions;
   if (changed) {
-    await storePlan(userId, testId, { plan, planHash: hash, computedOn: today, missedOn, missedSessions });
+    await storePlan(userId, testId, {
+      plan,
+      planHash: hash,
+      computedOn: today,
+      missedOn,
+      missedSessions,
+    });
   }
 
   return {
@@ -61,38 +76,52 @@ export async function getPlanView(userId: string, testId: string, today: string)
     plan,
     hash,
     missed: missedOn ? { sessions: missedSessions, on: missedOn } : null,
-    explanation: stored && stored.explanationHash === hash ? stored.explanation : null,
+    explanation:
+      stored && stored.explanationHash === hash ? stored.explanation : null,
   };
 }
 
-/** The facts Claude is given to explain a plan: names and numbers, nothing it could change. */
-function explanationFacts(view: PlanView, today: string) {
+/**
+ * The facts Claude is given to explain a plan: names and numbers, nothing it
+ * could change. Days with nothing planned are counted rather than listed, so
+ * a test months away does not send hundreds of empty days.
+ */
+export function explanationFacts(view: PlanView, today: string) {
   const name = new Map(view.state.topics.map((t) => [t.id, t.name]));
   const { plan, state } = view;
+  const studyDays = plan.days.filter((d) => !d.isTestDay);
   return {
     className: state.test.className,
     testName: state.test.name,
     today,
     testDate: state.test.testDate,
     minutesPerDay: state.test.minutesPerDay,
+    studyDays: studyDays.length,
+    studyDaysWithNothingPlanned: studyDays.filter(
+      (d) => d.sessions.length === 0,
+    ).length,
     topics: state.topics.map((t) => ({
       name: t.name,
       type: t.type,
       level: LEVEL_NAMES[t.level],
       confidenceOutOf5: t.confidence,
-      latestCheck: t.latestCheck ? `${t.latestCheck.correct} of ${t.latestCheck.scored}` : "none yet",
+      latestCheck: t.latestCheck
+        ? `${t.latestCheck.correct} of ${t.latestCheck.scored}`
+        : "none yet",
       sessionsDone: t.sessionsDone,
     })),
-    days: plan.days.map((d) => ({
-      date: d.date,
-      isTestDay: d.isTestDay,
-      sessions: d.sessions.map((s) => ({
-        topic: name.get(s.topicId),
-        mode: MODES[s.mode].label,
-        minutes: s.minutes,
-        kind: s.kind === "learn" ? "first session" : "review",
+    days: plan.days
+      .filter((d) => d.sessions.length > 0 || d.isTestDay)
+      .map((d) => ({
+        date: d.date,
+        isTestDay: d.isTestDay,
+        sessions: d.sessions.map((s) => ({
+          topic: name.get(s.topicId),
+          mode: MODES[s.mode].label,
+          minutes: s.minutes,
+          kind: s.kind === "learn" ? "first session" : "review",
+        })),
       })),
-    })),
     shortage: plan.shortage
       ? {
           kind:
@@ -102,7 +131,9 @@ function explanationFacts(view: PlanView, today: string) {
           minutesAvailable: plan.shortage.minutesAvailable,
           minutesWanted: plan.shortage.minutesWanted,
           topicsLeftOut: plan.shortage.uncovered.map((id) => name.get(id)),
-          topicsWithoutReview: plan.shortage.unreviewed.map((id) => name.get(id)),
+          topicsWithoutReview: plan.shortage.unreviewed.map((id) =>
+            name.get(id),
+          ),
           prioritized: plan.shortage.prioritized.map((id) => name.get(id)),
         }
       : null,
@@ -110,11 +141,15 @@ function explanationFacts(view: PlanView, today: string) {
 }
 
 /** Returns the explanation for the current plan, writing a new one only when the plan has changed. */
-export async function ensureExplanation(ctx: AiContext, testId: string): Promise<string | null> {
+export async function ensureExplanation(
+  ctx: AiContext,
+  testId: string,
+): Promise<string | null> {
   const view = await getPlanView(ctx.userId, testId, ctx.today);
   if (!view) return null;
   if (view.explanation) return view.explanation;
-  if (view.plan.status !== "active" && view.plan.status !== "complete") return null;
+  if (view.plan.status !== "active" && view.plan.status !== "complete")
+    return null;
   const explanation = await explainPlan(ctx, explanationFacts(view, ctx.today));
   await storeExplanation(ctx.userId, testId, view.hash, explanation);
   return explanation;

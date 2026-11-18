@@ -5,6 +5,7 @@ import { useState } from "react";
 import { MAX_MINUTES_PER_DAY, MIN_MINUTES_PER_DAY } from "@/config/study";
 import { api, messageFrom } from "@/lib/api";
 import type { TestDto } from "@/lib/dto";
+import { latestTestDate } from "@/lib/test-date";
 
 /** Change a test's date or daily minutes, or delete the test. */
 export function TestSettings({ test, today }: { test: TestDto; today: string }) {
@@ -57,6 +58,7 @@ export function TestSettings({ test, today }: { test: TestDto; today: string }) 
             className="field"
             required
             min={today}
+            max={latestTestDate(today)}
             value={testDate}
             onChange={(e) => setTestDate(e.target.value)}
           />

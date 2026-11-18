@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { closeDb, getDb, schema } from "@/db";
-import { storedBytesForUser } from "@/server/data/files";
+import { storedBytesForEveryone, storedBytesForUser } from "@/server/data/files";
 import { countTests } from "@/server/data/tests";
 import { createUser, resetDb, seedStudentData } from "../support/db";
 
@@ -39,6 +39,13 @@ describe("what a student is storing", () => {
     });
     expect(await storedBytesForUser(owner)).toBe(1005);
     expect(await storedBytesForUser(other)).toBe(5);
+  });
+
+  it("adds up everyone's files for the app-wide ceiling", async () => {
+    const other = await createUser("other");
+    await seedStudentData(owner);
+    await seedStudentData(other);
+    expect(await storedBytesForEveryone()).toBe(10);
   });
 
   it("is zero for a new student", async () => {

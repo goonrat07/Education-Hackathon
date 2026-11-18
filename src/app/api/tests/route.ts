@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { testDateProblem } from "@/lib/test-date";
 import { MAX_TESTS_PER_STUDENT } from "@/config/uploads";
 import { countTests, createTest } from "@/server/data/tests";
 import { InvalidRequestError } from "@/server/errors";
@@ -13,7 +14,8 @@ export async function POST(request: Request) {
   return handle(async () => {
     const user = await requireUser();
     const input = await readBody(request, createSchema);
-    if (input.testDate < user.today) throw new InvalidRequestError("Pick a test date that hasn't passed.");
+    const dateProblem = testDateProblem(input.testDate, user.today);
+    if (dateProblem) throw new InvalidRequestError(dateProblem);
     if ((await countTests(user.userId)) >= MAX_TESTS_PER_STUDENT) {
       throw new InvalidRequestError(
         `You have ${MAX_TESTS_PER_STUDENT} tests, which is the most an account can hold. Delete an old one first.`,

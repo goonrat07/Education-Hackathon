@@ -3,16 +3,10 @@ import { cookies, headers } from "next/headers";
 import { databaseConfigured } from "@/db";
 import { isValidTimeZone, localDate } from "@/lib/dates";
 import { getAuth } from "@/server/auth";
+import { UnauthorizedError } from "@/server/errors";
 
 /** Name of the cookie the browser sets with the student's IANA timezone. */
 export const TIMEZONE_COOKIE = "tz";
-
-export class UnauthorizedError extends Error {
-  constructor() {
-    super("Not signed in");
-    this.name = "UnauthorizedError";
-  }
-}
 
 export interface UserContext {
   userId: string;

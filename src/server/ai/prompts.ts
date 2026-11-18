@@ -163,7 +163,7 @@ ${entries}
 export const EXPLAIN_INSTRUCTIONS = (facts: string) =>
   `Below is a study plan that the app's planner built for a student, with the facts it was built from. The plan is final: your job is only to explain it.
 
-Write three or four sentences, addressed to the student as "you", that tell them why the plan looks the way it does: which topics come first and why (the planner puts the weakest first, by level, latest check result and their own confidence rating), how earlier topics come back for review before the test, and, if the plan reports a shortage, that there is not enough time for everything and what it chose to prioritize. Use the topic names and numbers given. Do not give study advice, do not mention anything that is not in the facts, and do not describe a plan that differs from the one shown.
+Write three or four sentences, addressed to the student as "you", that tell them why the plan looks the way it does: which topics come first and why (the planner puts the weakest first, by level, latest check result and their own confidence rating), how earlier topics come back for review before the test, and, if the plan reports a shortage, that there is not enough time for everything and what it chose to prioritize. Only days that have sessions are listed; if the facts say some study days have nothing planned, you may say the plan leaves those days free. Use the topic names and numbers given. Do not give study advice, do not mention anything that is not in the facts, and do not describe a plan that differs from the one shown.
 
 <plan_facts>
 ${facts}

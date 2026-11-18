@@ -1,6 +1,12 @@
 import { z } from "zod";
-import { ACCEPTED_TYPES, MAX_FILES_PER_TEST, MAX_STORED_BYTES_PER_STUDENT, maxBytesFor } from "@/config/uploads";
-import { createFile, listFiles, storedBytesForUser } from "@/server/data/files";
+import {
+  ACCEPTED_TYPES,
+  MAX_FILES_PER_TEST,
+  MAX_STORED_BYTES_PER_STUDENT,
+  MAX_STORED_BYTES_TOTAL,
+  maxBytesFor,
+} from "@/config/uploads";
+import { createFile, listFiles, storedBytesForEveryone, storedBytesForUser } from "@/server/data/files";
 import { InvalidRequestError, NotFoundError } from "@/server/errors";
 import { handle, id, json, readBody } from "@/server/http";
 import { requireUser } from "@/server/session";
@@ -31,6 +37,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ tes
     if ((await storedBytesForUser(user.userId)) + input.sizeBytes > MAX_STORED_BYTES_PER_STUDENT) {
       throw new InvalidRequestError(
         "Your account's file storage is full. Remove files from older tests, or delete those tests, to make room.",
+      );
+    }
+    if ((await storedBytesForEveryone()) + input.sizeBytes > MAX_STORED_BYTES_TOTAL) {
+      throw new InvalidRequestError(
+        "Study Coach has run out of room for new files. Tell whoever runs it; nothing of yours was lost.",
       );
     }
     const file = await createFile(user.userId, testId, input);

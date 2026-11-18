@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { MAX_MINUTES_PER_DAY, MIN_MINUTES_PER_DAY } from "@/config/study";
 import { api, messageFrom } from "@/lib/api";
+import { latestTestDate } from "@/lib/test-date";
 
 const QUICK_MINUTES = [15, 20, 30, 45, 60, 90];
 
@@ -86,6 +87,7 @@ export function NewTestForm() {
           className="field max-w-56"
           required
           min={earliest}
+          max={earliest ? latestTestDate(earliest) : undefined}
           value={testDate}
           onChange={(e) => setTestDate(e.target.value)}
         />

@@ -101,3 +101,14 @@ export async function storedBytesForUser(userId: string): Promise<number> {
     .where(eq(schema.files.userId, userId));
   return row?.total ?? 0;
 }
+
+/**
+ * Total declared size of every student's uploads, for the app-wide storage
+ * ceiling. A single number: no student's files are read.
+ */
+export async function storedBytesForEveryone(): Promise<number> {
+  const [row] = await getDb()
+    .select({ total: sql<number>`coalesce(sum(${schema.files.sizeBytes}), 0)::bigint` })
+    .from(schema.files);
+  return Number(row?.total ?? 0);
+}

@@ -28,6 +28,15 @@ export function isImageType(mime: string): mime is ImageType {
   return (IMAGE_TYPES as readonly string[]).includes(mime);
 }
 
+/** How many pages a PDF has, or null when it cannot be opened here (for example an encrypted one). */
+export async function countPdfPages(bytes: Buffer): Promise<number | null> {
+  try {
+    return (await PDFDocument.load(bytes)).getPageCount();
+  } catch {
+    return null;
+  }
+}
+
 interface Part {
   /** Page in the original file that this part's page 1 corresponds to. */
   firstPage: number;

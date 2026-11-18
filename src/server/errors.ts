@@ -1,5 +1,13 @@
 /** Errors the route layer turns into HTTP responses. */
 
+/** Nobody is signed in. */
+export class UnauthorizedError extends Error {
+  constructor() {
+    super("Not signed in");
+    this.name = "UnauthorizedError";
+  }
+}
+
 /** The thing does not exist, or it belongs to someone else (the two are never told apart). */
 export class NotFoundError extends Error {
   constructor(what = "Not found") {
