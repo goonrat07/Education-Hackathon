@@ -72,6 +72,32 @@ export async function getFileBytes(userId: string, fileId: string): Promise<Buff
   return Buffer.concat(chunks.map((c) => c.data));
 }
 
+/**
+ * The file's bytes as a stream, one stored piece at a time. Streaming keeps a
+ * large PDF out of memory and inside what one response may carry (a response
+ * sent in one go is capped at 4.5 MB by the host; a streamed one is not).
+ * Nothing is sent for a file that is not the caller's.
+ */
+export function streamFileBytes(userId: string, fileId: string): ReadableStream<Uint8Array> {
+  let next = 0;
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const [piece] = await getDb()
+        .select({ data: schema.fileChunks.data })
+        .from(schema.fileChunks)
+        .where(
+          and(eq(schema.fileChunks.fileId, fileId), eq(schema.fileChunks.userId, userId), eq(schema.fileChunks.idx, next)),
+        );
+      if (!piece) {
+        controller.close();
+        return;
+      }
+      next += 1;
+      controller.enqueue(new Uint8Array(piece.data));
+    },
+  });
+}
+
 export async function updateFile(
   userId: string,
   fileId: string,

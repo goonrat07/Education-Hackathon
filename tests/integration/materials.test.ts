@@ -3,7 +3,7 @@ import { PDFDocument } from "pdf-lib";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { MAX_PAGES_PER_TEST, MAX_PDF_PAGES, UPLOAD_CHUNK_BYTES } from "@/config/uploads";
 import { closeDb, getDb, schema } from "@/db";
-import { storedSize } from "@/server/data/files";
+import { storedSize, streamFileBytes } from "@/server/data/files";
 import { getAiUsage } from "@/server/data/usage";
 import type { UserContext } from "@/server/session";
 import { readUploadedFile, storeUploadChunk } from "@/server/study/materials";
@@ -134,5 +134,40 @@ describe("reading an uploaded PDF", () => {
     const file = await addFile({ sizeBytes: bytes.length, bytes, status: "uploaded" });
     const stranger = await createUser("stranger");
     await expect(readUploadedFile(ctx(stranger), file.id)).rejects.toThrow(/not found/i);
+  });
+});
+
+describe("sending a stored file back", () => {
+  async function drain(stream: ReadableStream<Uint8Array>): Promise<{ bytes: Buffer; pieces: number }> {
+    const parts: Uint8Array[] = [];
+    const reader = stream.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value);
+    }
+    return { bytes: Buffer.concat(parts), pieces: parts.length };
+  }
+
+  it("streams the file one stored piece at a time, in order", async () => {
+    const file = await addFile({ sizeBytes: 9, status: "ready" });
+    await getDb()
+      .insert(schema.fileChunks)
+      .values([
+        { fileId: file.id, userId, idx: 2, data: Buffer.from("ghi") },
+        { fileId: file.id, userId, idx: 0, data: Buffer.from("abc") },
+        { fileId: file.id, userId, idx: 1, data: Buffer.from("def") },
+      ]);
+
+    const { bytes, pieces } = await drain(streamFileBytes(userId, file.id));
+    expect(bytes.toString()).toBe("abcdefghi");
+    expect(pieces).toBe(3);
+  });
+
+  it("sends nothing of another student's file", async () => {
+    const file = await addFile({ sizeBytes: 3, bytes: Buffer.from("abc"), status: "ready" });
+    const stranger = await createUser("stranger");
+    const { bytes } = await drain(streamFileBytes(stranger, file.id));
+    expect(bytes.length).toBe(0);
   });
 });
