@@ -11,14 +11,14 @@ function sleep(ms: number): Promise<void> {
 }
 
 /** Takes the lock if nobody holds it (or the holder's lock has expired). */
-async function acquire(userId: string, key: string): Promise<boolean> {
+async function acquire(userId: string, key: string, seconds = LOCK_SECONDS): Promise<boolean> {
   const db = getDb();
   await db
     .delete(schema.workLocks)
     .where(and(eq(schema.workLocks.userId, userId), eq(schema.workLocks.key, key), lt(schema.workLocks.expiresAt, new Date())));
   const rows = await db
     .insert(schema.workLocks)
-    .values({ userId, key, expiresAt: sql`now() + make_interval(secs => ${LOCK_SECONDS})` })
+    .values({ userId, key, expiresAt: sql`now() + make_interval(secs => ${seconds})` })
     .onConflictDoNothing()
     .returning({ key: schema.workLocks.key });
   return rows.length > 0;
@@ -28,6 +28,15 @@ async function release(userId: string, key: string): Promise<void> {
   await getDb()
     .delete(schema.workLocks)
     .where(and(eq(schema.workLocks.userId, userId), eq(schema.workLocks.key, key)));
+}
+
+/**
+ * True the first time it is asked about a job, then false until `seconds`
+ * have passed. For work worth trying now and then but not on every visit,
+ * such as writing more questions for a topic that came up short last time.
+ */
+export async function notTriedLately(userId: string, key: string, seconds: number): Promise<boolean> {
+  return acquire(userId, key, seconds);
 }
 
 /**

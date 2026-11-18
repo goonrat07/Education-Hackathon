@@ -24,7 +24,7 @@ import {
   listStudyItems,
   type Item,
 } from "@/server/data/items";
-import { onlyOnce } from "@/server/data/locks";
+import { notTriedLately, onlyOnce } from "@/server/data/locks";
 import { listTopicPassages } from "@/server/data/passages";
 import { getTopic, type Topic } from "@/server/data/topics";
 import { hasBackgroundHeadroom } from "@/server/data/usage";
@@ -45,18 +45,26 @@ async function topicPassages(ctx: AiContext, topic: Topic) {
 /** A topic never holds more practice problems than this; after that, old ones are reused. */
 const MAX_PRACTICE_PER_TOPIC = 24;
 
+/** A topic that came up short is asked for more at most this often, not on every visit. */
+const TOP_UP_WAIT_SECONDS = 12 * 60 * 60;
+
 /**
  * Makes sure a topic has study material for a mode, writing and verifying it
- * when needed. Flashcards are written once. Practice problems are topped up
- * when the student has already got nearly all of them right, so a review
- * session has something new to work on. Returns the topic's active items.
+ * when needed, and returns the topic's active items.
+ *
+ * Flashcards are written once. Practice problems are topped up when the
+ * student has already got nearly all of them right, so a review session has
+ * something new to work on. A topic that has a little material but cannot
+ * get more (thin passages, Claude unreachable) is studied with what it has:
+ * only a topic with nothing at all fails.
  */
 export async function ensureStudyItems(ctx: AiContext, topic: Topic, mode: ModeId): Promise<Item[]> {
   const kinds = KINDS_FOR_MODE[mode];
   const minimum = mode === "flashcards" ? MIN_FLASHCARDS : MIN_PRACTICE_PROBLEMS;
+  const current = () => listStudyItems(ctx.userId, topic.id, kinds);
 
   const enoughAlready = async (): Promise<Item[] | null> => {
-    const existing = await listStudyItems(ctx.userId, topic.id, kinds);
+    const existing = await current();
     const stillToLearn =
       mode === "flashcards" ? existing.length : existing.filter((i) => i.lastResult !== "correct").length;
     if (stillToLearn >= minimum) return existing;
@@ -65,19 +73,31 @@ export async function ensureStudyItems(ctx: AiContext, topic: Topic, mode: ModeI
   };
 
   return onlyOnce(ctx.userId, `study:${topic.id}:${mode}`, enoughAlready, async () => {
-    const labeled = await topicPassages(ctx, topic);
-    const avoid = await listPromptTexts(ctx.userId, topic.id);
-    const candidates =
-      mode === "flashcards"
-        ? await generateFlashcards(ctx, topic, labeled, avoid, FLASHCARDS_PER_TOPIC)
-        : await generatePractice(ctx, topic, labeled, avoid, PRACTICE_MIX);
-    const verified = await keepVerified(ctx, labeled, candidates);
-    await insertStudyItems(ctx.userId, topic.testId, topic.id, verified);
+    const existing = await current();
+    // A topic that came up short once usually will again, so it is asked for more only now and then.
+    const topUpDue = () => notTriedLately(ctx.userId, `top-up:${topic.id}:${mode}`, TOP_UP_WAIT_SECONDS);
+    if (existing.length > 0 && !(await topUpDue())) return existing;
 
-    const items = await listStudyItems(ctx.userId, topic.id, kinds);
-    if (items.length < minimum) {
+    try {
+      const labeled = await topicPassages(ctx, topic);
+      const avoid = await listPromptTexts(ctx.userId, topic.id);
+      const candidates =
+        mode === "flashcards"
+          ? await generateFlashcards(ctx, topic, labeled, avoid, FLASHCARDS_PER_TOPIC)
+          : await generatePractice(ctx, topic, labeled, avoid, PRACTICE_MIX);
+      const verified = await keepVerified(ctx, labeled, candidates);
+      await insertStudyItems(ctx.userId, topic.testId, topic.id, verified);
+    } catch (error) {
+      // Writing more failed. If there is already something to study, study that.
+      if (existing.length === 0) throw error;
+      console.warn(`Could not write more study material for topic ${topic.id}`, error);
+      return existing;
+    }
+
+    const items = await current();
+    if (items.length === 0) {
       throw new AiOutputError(
-        `Only ${items.length} verified ${mode === "flashcards" ? "cards" : "problems"} could be written for "${topic.name}". Its passages may be too thin to study from.`,
+        `Nothing could be written for "${topic.name}" from your materials. It may be too small a topic to study on its own: merge it into a related topic, add a file that covers it, or delete it.`,
       );
     }
     return items;
@@ -107,7 +127,9 @@ export async function ensureCheckSet(ctx: AiContext, topic: Topic): Promise<stri
       verified = [...verified, ...(await keepVerified(ctx, labeled, candidates))];
     }
     if (verified.length < CHECK_MIN_QUESTIONS) {
-      throw new AiOutputError(`Could not write a verified check for "${topic.name}".`);
+      throw new AiOutputError(
+        `New check questions could not be written for "${topic.name}". If this keeps happening, the topic may be too small: merge it into a related one.`,
+      );
     }
     return createCheckSet(ctx.userId, topic.testId, topic.id, verified.slice(0, CHECK_TARGET_QUESTIONS));
   });
